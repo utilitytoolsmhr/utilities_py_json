@@ -1,14 +1,13 @@
 import json
 import os
 import openpyxl
+from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 
 def get_json_files(directory):
-    """Obtiene todos los archivos JSON en el directorio especificado."""
     return [f for f in os.listdir(directory) if f.endswith('.json')]
 
 def get_defaults_structure(json_data):
-    """Genera la estructura de valores por defecto según el tipo de dato."""
     def process_dict(data):
         if isinstance(data, dict):
             return {k: process_dict(v) for k, v in data.items()}
@@ -25,7 +24,6 @@ def get_defaults_structure(json_data):
     return process_dict(json_data)
 
 def write_to_excel(headers, sheet):
-    """Escribe las cabeceras en una hoja de Excel."""
     sheet["A1"] = "Campo"
     col = 1
     for header in headers:
@@ -33,12 +31,10 @@ def write_to_excel(headers, sheet):
         col += 1
 
 def write_defaults_to_json(defaults, output_path):
-    """Escribe los valores por defecto en un archivo JSON."""
     with open(output_path, 'w') as f:
         json.dump(defaults, f, indent=4)
 
 def format_value(value):
-    """Devuelve el valor predeterminado según el tipo de dato."""
     if isinstance(value, str):
         return '""'
     elif isinstance(value, int):
@@ -48,7 +44,6 @@ def format_value(value):
     return 'None'
 
 def format_json(json_obj, path='', lines=None):
-    """Transforma recursivamente el JSON y acumula las líneas de código en 'lines'."""
     if lines is None:
         lines = []
     if isinstance(json_obj, dict):
@@ -63,55 +58,49 @@ def format_json(json_obj, path='', lines=None):
         lines.append(f"    json_return{path} = None")
     return lines
 
-def process_json_file(json_path):
-    """Procesa un archivo JSON y genera un archivo Python con las cabeceras formateadas."""
-    with open(json_path, 'r') as file:
-        data = json.load(file)
+def create_headers(sheet, max_col):
+    sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max_col + 6)
+    sheet.cell(row=2, column=max_col + 1, value="Tipo").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
+    sheet.cell(row=2, column=max_col + 2, value="Valores").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
+    sheet.merge_cells(start_row=2, start_column=max_col + 3, end_row=2, end_column=max_col + 7)
+    sheet.cell(row=2, column=max_col + 3, value="Mapeo").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
+    sheet.cell(row=3, column=max_col + 3, value="DOMINIO DF")
+    sheet.cell(row=3, column=max_col + 4, value="SUBDOMINIO DF")
+    sheet.cell(row=3, column=max_col + 5, value="PROPOSITO")
+    sheet.cell(row=3, column=max_col + 6, value="CAMPO")
+    sheet.cell(row=3, column=max_col + 7, value="ATRIBUTO")
+    sheet.cell(row=2, column=max_col + 8, value="Agregado").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
+    sheet.cell(row=2, column=max_col + 9, value="Error 403").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
+    sheet.cell(row=2, column=max_col + 10, value="Observaciones").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
 
-    # Nombre base del archivo sin extensión
-    base_name = 'json_return_' + os.path.splitext(os.path.basename(json_path))[0]
+def adjust_column_width(sheet):
+    for column_cells in sheet.columns:
+        length = max(len(str(cell.value)) for cell in column_cells)
+        sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = length + 2
 
-    # Lista para acumular el contenido del archivo Python
-    lines = []
-    formatted_json = json.dumps(data)
-    lines.append(f"{base_name} = {formatted_json}")
-    lines.append(f"json_return = json.loads({base_name})")
-    lines.append("")
-    lines.append("def tfn(fna, fti):")
-    lines.append("    pass  # Aquí va la lógica de transformación")
-    lines.append("")
-    lines.append("def main(p):")
-    lines.append("    # Aquí va la lógica principal")
-    lines.append("")
-
-    # Aplicar la formateación inicial al JSON entero
-    replacement_lines = format_json(data)
-    lines.extend(replacement_lines)
-
-    lines.append("    return json_return")
-    lines.append("")
-
-    # Guardar el nuevo archivo Python
-    new_file_path = f"{os.path.splitext(os.path.basename(json_path))[0]}.py"
-    with open(new_file_path, 'w') as new_file:
-        new_file.write('\n'.join(lines))
-
-    # Generar el archivo JSON con valores por defecto
-    defaults = get_defaults_structure(data)
-    write_defaults_to_json(defaults, os.path.join(os.path.dirname(json_path), f"cr_{os.path.basename(json_path)}"))
+def get_max_column_width(json_data, col=1):
+    max_col = col
+    if isinstance(json_data, dict):
+        for key, value in json_data.items():
+            if isinstance(value, (dict, list)):
+                new_col = get_max_column_width(value, col + 1)
+                max_col = max(max_col, new_col)
+    elif isinstance(json_data, list) and len(json_data) > 0 and isinstance(json_data[0], (dict, list)):
+        new_col = get_max_column_width(json_data[0], col + 1)
+        max_col = max(max_col, new_col)
+    return max_col
 
 def write_data_to_excel(json_data, sheet):
-    """Escribe datos JSON en una hoja de Excel."""
-    current_row = 2
-    sheet["A1"] = "Campo"
-    sheet["B1"] = "Tipo de Dato"
-    sheet["C1"] = "Ejemplo Valor"
-    
+    current_row = 4
+    max_col = get_max_column_width(json_data)
+
     def process_dict(data, col, row):
         for key, value in data.items():
             sheet[f"{get_column_letter(col)}{row}"] = key
             if isinstance(value, dict):
                 row = process_dict(value, col + 1, row + 1)
+            elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
+                row = process_dict(value[0], col + 1, row + 1)
             else:
                 if isinstance(value, int):
                     data_type = "Integer"
@@ -125,34 +114,59 @@ def write_data_to_excel(json_data, sheet):
                 else:
                     data_type = "Unknown"
                     value = str(value)
-                sheet[f"{get_column_letter(col + 1)}{row}"] = value
-                sheet[f"{get_column_letter(col + 2)}{row}"] = data_type
+                sheet[f"{get_column_letter(max_col + 1)}{row}"] = data_type
+                sheet[f"{get_column_letter(max_col + 2)}{row}"] = value
                 row += 1
         return row
     
     process_dict(json_data, 1, current_row)
+    create_headers(sheet, max_col)
+    adjust_column_width(sheet)
+
+def process_json_file(json_path):
+    with open(json_path, 'r') as file:
+        data = json.load(file)
+    base_name = 'json_return_' + os.path.splitext(os.path.basename(json_path))[0]
+    cr_json_name = f"cr_{os.path.basename(json_path)}"
+    cr_json_path = os.path.join(os.path.dirname(json_path), cr_json_name)
+    if not os.path.exists(cr_json_path):
+        defaults = get_defaults_structure(data)
+        write_defaults_to_json(defaults, cr_json_path)
+    with open(cr_json_path, 'r') as file:
+        cr_data = json.load(file)
+    lines = []
+    formatted_json = json.dumps(data)
+    lines.append(f"{base_name} = {formatted_json}")
+    lines.append(f"json_return = json.loads({base_name})")
+    lines.append("")
+    lines.append(f"cr_{base_name} = {json.dumps(cr_data)}")
+    lines.append("")
+    lines.append("def tfn(fna, fti):")
+    lines.append("    pass")
+    lines.append("")
+    lines.append("def main(p):")
+    lines.append("")
+    replacement_lines = format_json(data)
+    lines.extend(replacement_lines)
+    lines.append("    return json_return")
+    lines.append("")
+    new_file_path = f"{os.path.splitext(os.path.basename(json_path))[0]}.py"
+    with open(new_file_path, 'w') as new_file:
+        new_file.write('\n'.join(lines))
 
 def main(P):
-    """Función principal que procesa todos los archivos JSON en el directorio actual."""
-    headers = set()
     workbook = openpyxl.Workbook()
-    
     for filename in os.listdir(P):
         if filename.endswith('.json'):
             json_path = os.path.join(P, filename)
             with open(json_path, 'r') as f:
                 json_data = json.load(f)
-                sheet = workbook.create_sheet(title=os.path.splitext(filename)[0])
-                headers.update(json_data.keys())
+                sheet_name = os.path.splitext(filename)[0][:31]
+                sheet = workbook.create_sheet(title=sheet_name)
                 write_data_to_excel(json_data, sheet)
                 process_json_file(json_path)
-    
     if 'Sheet' in workbook.sheetnames:
         workbook.remove(workbook['Sheet'])
-    
-    # Guardar cabeceras en una hoja de Excel
-    headers_sheet = workbook.create_sheet(title="Cabeceras")
-    write_to_excel(headers, headers_sheet)
     workbook.save(os.path.join(P, "headers.xlsx"))
 
 if __name__ == "__main__":
