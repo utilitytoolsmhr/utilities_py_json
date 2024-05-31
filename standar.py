@@ -1,57 +1,72 @@
 import json
 import os
+from collections import defaultdict
+from deepdiff import DeepDiff
 
-# Definir el JSON perfecto para persona y empresa
-json_perfecto_persona = {
-    "Nombre": "",
-    "NumeroOperacion": "",
-    "DatosPrincipales": {},
-    "Modulos": []
-}
+def load_json_files(directory):
+    json_files = []
+    for filename in os.listdir(directory):
+        if filename.endswith(".json"):
+            with open(os.path.join(directory, filename), 'r') as f:
+                json_files.append(json.load(f))
+    return json_files
 
-json_perfecto_empresa = {
-    "Nombre": "",
-    "NumeroOperacion": "",
-    "DatosPrincipales": {},
-    "Modulos": []
-}
-
-def estandarizar_json(data, tipo):
-    json_estandarizado = json_perfecto_persona.copy() if tipo == "persona" else json_perfecto_empresa.copy()
-    json_estandarizado["Nombre"] = data.get("ReporteCrediticio", {}).get("Nombre", "")
-    json_estandarizado["NumeroOperacion"] = data.get("ReporteCrediticio", {}).get("NumeroOperacion", "")
-    json_estandarizado["DatosPrincipales"] = data.get("ReporteCrediticio", {}).get("DatosPrincipales", {})
+def merge_json_data(json_files):
+    merged_data = defaultdict(list)
     
-    modulos = data.get("ReporteCrediticio", {}).get("Modulos", {}).get("Modulo", [])
-    for modulo in modulos:
-        mod = {
-            "Nombre": modulo.get("Nombre", ""),
-            "Codigo": modulo.get("Codigo", ""),
-            "Data": modulo.get("Data", {})
-        }
-        json_estandarizado["Modulos"].append(mod)
+    for data in json_files:
+        for key, value in data.items():
+            if isinstance(value, list):
+                merged_data[key].extend(value)
+            else:
+                merged_data[key].append(value)
+                
+    complete_json = {}
+    for key, value in merged_data.items():
+        complete_json[key] = value[:3]
     
-    return json_estandarizado
+    return complete_json
 
-def procesar_archivos(carpeta, tipo):
-    archivos = [f for f in os.listdir(carpeta) if f.endswith('.json')]
-    json_estandarizados = []
-
-    for archivo in archivos:
-        with open(os.path.join(carpeta, archivo), 'r') as f:
-            data = json.load(f)
-            json_estandarizado = estandarizar_json(data["dataSourceResponse"]["GetReporteOnlineResponse"], tipo)
-            json_estandarizados.append(json_estandarizado)
+def compare_json_structures(json_files):
+    base_structure = None
+    differences = []
     
-    return json_estandarizados
+    for i, data in enumerate(json_files):
+        if base_structure is None:
+            base_structure = data
+        else:
+            diff = DeepDiff(base_structure, data, ignore_order=True)
+            if diff:
+                differences.append((i, diff))
+                
+    return differences
 
-def guardar_json_estandarizados(json_estandarizados, tipo):
-    with open(f'{tipo}_json_estandarizados.json', 'w') as f:
-        json.dump(json_estandarizados, f, indent=4)
+def main():
+    persona_dir = "persona"
+    empresa_dir = "empresa"
+    
+    persona_json_files = load_json_files(persona_dir)
+    empresa_json_files = load_json_files(empresa_dir)
+    
+    complete_persona_json = merge_json_data(persona_json_files)
+    complete_empresa_json = merge_json_data(empresa_json_files)
+    
+    with open('complete_persona.json', 'w') as f:
+        json.dump(complete_persona_json, f, indent=4)
+        
+    with open('complete_empresa.json', 'w') as f:
+        json.dump(complete_empresa_json, f, indent=4)
+    
+    persona_differences = compare_json_structures(persona_json_files)
+    empresa_differences = compare_json_structures(empresa_json_files)
+    
+    with open('persona_structure_differences.json', 'w') as f:
+        json.dump(persona_differences, f, indent=4)
+        
+    with open('empresa_structure_differences.json', 'w') as f:
+        json.dump(empresa_differences, f, indent=4)
+    
+    print("JSON completos y reportes de diferencias de estructura generados exitosamente.")
 
-# Procesar JSON de personas y empresas
-json_estandarizados_persona = procesar_archivos('Persona', 'persona')
-guardar_json_estandarizados(json_estandarizados_persona, 'persona')
-
-json_estandarizados_empresa = procesar_archivos('Empresa', 'empresa')
-guardar_json_estandarizados(json_estandarizados_empresa, 'empresa')
+if __name__ == "__main__":
+    main()
