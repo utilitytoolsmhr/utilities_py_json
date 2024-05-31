@@ -38,9 +38,13 @@ def compare_json_structures(json_files):
         if base_structure is None:
             base_structure = data
         else:
-            diff = DeepDiff(base_structure, data, ignore_order=True)
-            if diff:
-                differences.append((i, diff))
+            diff = DeepDiff(base_structure, data, ignore_order=True, exclude_paths="root['values_changed']")
+            filtered_diff = {
+                k: v for k, v in diff.items()
+                if any(key in k for key in ['type_changes', 'dictionary_item_added', 'dictionary_item_removed'])
+            }
+            if filtered_diff:
+                differences.append((i, filtered_diff))
                 
     return differences
 
