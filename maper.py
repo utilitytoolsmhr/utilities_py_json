@@ -53,10 +53,6 @@ def generate_script_for_module(module, tipo):
                 f.write(f"{indent}    if not data: return None\n")
                 f.write(f"{indent}    return [process_item(item) for item in data]\n\n")
 
-        def process_item(data):
-            if not data: return None
-            return {key: text_fix(value) for key, value in data.items()}
-
         if 'Data' in module:
             for key, value in module['Data'].items():
                 write_function_definitions(key, value)
