@@ -1,11 +1,21 @@
 import json
 import os
+import re
+import traceback
 
 # Función para limpiar textos
 text_fix = lambda x: x.strip() if isinstance(x, str) else x
 
-def generate_script_for_module(module, tipo):
-    nombre_modulo = module['Nombre'].replace(' ', '_').lower()
+# Directorios
+persona_dir = 'persona'
+empresa_dir = 'empresa'
+
+def sanitize_filename(filename):
+    # Reemplaza caracteres no alfanuméricos por guiones bajos
+    return re.sub(r'[^a-zA-Z0-9_]', '_', filename)
+
+def generate_script_for_module(module, tipo, valid_data):
+    nombre_modulo = sanitize_filename(module['Nombre'].replace(' ', '_').lower())
     codigo_modulo = module['Codigo']
     nombre_archivo = f"{tipo}_modulo_{codigo_modulo}_{nombre_modulo}.py"
 
@@ -38,7 +48,9 @@ def generate_script_for_module(module, tipo):
                 f.write(f"{indent}    if not data: return None\n")
                 f.write(f"{indent}    return {{\n")
                 for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, dict):
+                    if sub_key in ('xsi:nil', 'xmlns:xsi'):
+                        f.write(f"{indent}        '{sub_key}': None,\n")
+                    elif isinstance(sub_value, dict):
                         f.write(f"{indent}        '{sub_key}': process_{sub_key.lower()}(data.get('{sub_key}')),\n")
                     elif isinstance(sub_value, list):
                         f.write(f"{indent}        '{sub_key}': [process_item(item) for item in data.get('{sub_key}', [])],\n")
@@ -46,15 +58,19 @@ def generate_script_for_module(module, tipo):
                         f.write(f"{indent}        '{sub_key}': text_fix(data.get('{sub_key}')),\n")
                 f.write(f"{indent}    }}\n\n")
                 for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, dict):
+                    if isinstance(sub_value, dict) and sub_key not in ('xsi:nil', 'xmlns:xsi'):
                         write_function_definitions(sub_key, sub_value, indent_level=1)
             elif isinstance(value, list):
                 f.write(f"{indent}def process_{key.lower()}(data):\n")
                 f.write(f"{indent}    if not data: return None\n")
                 f.write(f"{indent}    return [process_item(item) for item in data]\n\n")
 
-        if 'Data' in module:
-            for key, value in module['Data'].items():
+        def process_item(data):
+            if not data: return None
+            return {key: text_fix(value) for key, value in data.items()}
+
+        if valid_data:
+            for key, value in valid_data.items():
                 write_function_definitions(key, value)
 
         f.write("    try:\n")
@@ -63,11 +79,11 @@ def generate_script_for_module(module, tipo):
         f.write("                'Codigo': modulo[0].get('Codigo'),\n")
         f.write("                'Nombre': modulo[0].get('Nombre'),\n")
         f.write("                'Data': data.get('flag') if data else None,\n")
-        if 'Data' in module:
-            for key, value in module['Data'].items():
+        if valid_data:
+            for key, value in valid_data.items():
                 if isinstance(value, dict):
                     f.write(f"                '{key}': process_{key.lower()}(data.get('{key}')),\n")
-                else:
+                elif key not in ('xsi:nil', 'xmlns:xsi'):
                     f.write(f"                '{key}': text_fix(data.get('{key}')),\n")
         f.write("            }\n")
         f.write("        }\n")
@@ -89,16 +105,39 @@ def generate_script_for_module(module, tipo):
         f.write("    with open('respond.json', 'w') as file:\n")
         f.write("        file.write(out)\n")
 
+def find_valid_module_data(modules, modulo_nombre, modulo_codigo):
+    for module in modules:
+        if module.get('Nombre') == modulo_nombre and module.get('Codigo') == modulo_codigo:
+            data = module.get('Data')
+            if data:
+                valid = True
+                for key, value in data.items():
+                    if key in ('xsi:nil', 'xmlns:xsi'):
+                        valid = False
+                        break
+                if valid:
+                    return data
+    return None
+
+def process_directory(directory, tipo):
+    for filename in os.listdir(directory):
+        if filename.endswith('.json'):
+            with open(os.path.join(directory, filename), 'r', encoding='utf-8') as f:
+                try:
+                    content = json.load(f)
+                    modules = content.get('dataSourceResponse', {}).get('GetReporteOnlineResponse', {}).get('ReporteCrediticio', {}).get('Modulos', {}).get('Modulo', [])
+                    for module in modules:
+                        module_nombre = module.get('Nombre')
+                        module_codigo = module.get('Codigo')
+                        valid_data = find_valid_module_data(modules, module_nombre, module_codigo)
+                        if valid_data:
+                            generate_script_for_module(module, tipo, valid_data)
+                except Exception as e:
+                    traceback.print_exc()
+
 def main():
-    with open('persona.json', 'r') as f:
-        json_perfecto_persona = json.load(f).get('dataSourceResponse', {}).get('GetReporteOnlineResponse', {})
-    for modulo in json_perfecto_persona.get('ReporteCrediticio', {}).get('Modulos', {}).get('Modulo', []):
-        generate_script_for_module(modulo, 'persona')
-    
-    with open('empresa.json', 'r') as f:
-        json_perfecto_empresa = json.load(f).get('dataSourceResponse', {}).get('GetReporteOnlineResponse', {})
-    for modulo in json_perfecto_empresa.get('ReporteCrediticio', {}).get('Modulos', {}).get('Modulo', []):
-        generate_script_for_module(modulo, 'empresa')
+    process_directory(persona_dir, 'persona')
+    process_directory(empresa_dir, 'empresa')
 
 if __name__ == '__main__':
     main()
