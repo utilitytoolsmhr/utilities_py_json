@@ -14,10 +14,8 @@ def sanitize_filename(filename):
     # Reemplaza caracteres no alfanuméricos por guiones bajos
     return re.sub(r'[^a-zA-Z0-9_]', '_', filename)
 
-def generate_script_for_module(module, tipo, valid_data):
-    nombre_modulo = sanitize_filename(module['Nombre'].replace(' ', '_').lower())
-    codigo_modulo = module['Codigo']
-    nombre_archivo = f"{tipo}_modulo_{codigo_modulo}_{nombre_modulo}.py"
+def generate_script_for_module(module, tipo_persona, tipo_empresa, nombre_modulo, codigo_persona, codigo_empresa, valid_data_persona, valid_data_empresa):
+    nombre_archivo = f"modulo_{sanitize_filename(nombre_modulo)}.py"
 
     with open(nombre_archivo, 'w') as f:
         f.write("import os\n")
@@ -28,14 +26,14 @@ def generate_script_for_module(module, tipo, valid_data):
 
         f.write("def main(payload):\n")
         f.write("    try:\n")
-        f.write(f"        nombre  = '{module['Nombre']}'\n")
-        f.write(f"        target  = '{nombre_modulo}'\n")
-        f.write(f"        codigo  = {codigo_modulo}\n")
-        f.write("        modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')\n")
-        f.write(f"        modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]\n")
-        f.write("        if len(modulo) > 1:\n")
-        f.write("            modulo_filtrado = [modulo_filtrado for modulo_filtrado in modulo if modulo_filtrado.get('Data').get(target)]\n")
-        f.write("            modulo = modulo_filtrado if len(modulo_filtrado) == 1 else modulo\n")
+        f.write("        tipo_persona = payload.get('applicants').get('primaryConsumer').get('personalInformation').get('tipoPersona')\n")
+        f.write(f"        nombre  = '{nombre_modulo}'\n")
+        f.write(f"        codigo_persona  = {codigo_persona}\n")
+        f.write(f"        codigo_empresa  = {codigo_empresa}\n")
+        f.write("        modulos = payload.get('applicants').get('primaryConsumer').get('equifax-pe-middleware').get('Modulos')\n")
+        f.write(f"        modulo  = [modulo for modulo in modulos if modulo.get('Nombre') == nombre]\n")
+        f.write("        if not modulo:\n")
+        f.write("            return None\n")
         f.write("        data = modulo[0].get('Data')\n")
         f.write("    except Exception as e:\n")
         f.write("        traceback.print_exc()\n")
@@ -69,6 +67,7 @@ def generate_script_for_module(module, tipo, valid_data):
             if not data: return None
             return {key: text_fix(value) for key, value in data.items()}
 
+        valid_data = valid_data_persona if tipo_persona == 1 else valid_data_empresa
         if valid_data:
             for key, value in valid_data.items():
                 write_function_definitions(key, value)
@@ -76,8 +75,8 @@ def generate_script_for_module(module, tipo, valid_data):
         f.write("    try:\n")
         f.write("        final_out = {\n")
         f.write(f"            '{nombre_modulo}': {{\n")
-        f.write("                'Codigo': modulo[0].get('Codigo'),\n")
-        f.write("                'Nombre': modulo[0].get('Nombre'),\n")
+        f.write("                'Codigo': codigo_persona if tipo_persona == 1 else codigo_empresa,\n")
+        f.write("                'Nombre': nombre,\n")
         f.write("                'Data': data.get('flag') if data else None,\n")
         if valid_data:
             for key, value in valid_data.items():
@@ -91,7 +90,7 @@ def generate_script_for_module(module, tipo, valid_data):
         f.write("        traceback.print_exc()\n")
         f.write("        final_out = {\n")
         f.write(f"            '{nombre_modulo}': {{\n")
-        f.write("                'Codigo': codigo,\n")
+        f.write("                'Codigo': codigo_persona if tipo_persona == 1 else codigo_empresa,\n")
         f.write("                'Nombre': nombre,\n")
         f.write("                'Data': False\n")
         f.write("            }\n")
@@ -120,6 +119,7 @@ def find_valid_module_data(modules, modulo_nombre, modulo_codigo):
     return None
 
 def process_directory(directory, tipo):
+    module_info = {}
     for filename in os.listdir(directory):
         if filename.endswith('.json'):
             with open(os.path.join(directory, filename), 'r', encoding='utf-8') as f:
@@ -129,15 +129,40 @@ def process_directory(directory, tipo):
                     for module in modules:
                         module_nombre = module.get('Nombre')
                         module_codigo = module.get('Codigo')
-                        valid_data = find_valid_module_data(modules, module_nombre, module_codigo)
-                        if valid_data:
-                            generate_script_for_module(module, tipo, valid_data)
+                        if module_nombre not in module_info:
+                            module_info[module_nombre] = {}
+                        if tipo == 'persona':
+                            module_info[module_nombre]['codigo_persona'] = module_codigo
+                            module_info[module_nombre]['data_persona'] = find_valid_module_data(modules, module_nombre, module_codigo)
+                        elif tipo == 'empresa':
+                            module_info[module_nombre]['codigo_empresa'] = module_codigo
+                            module_info[module_nombre]['data_empresa'] = find_valid_module_data(modules, module_nombre, module_codigo)
                 except Exception as e:
                     traceback.print_exc()
+    return module_info
 
 def main():
-    process_directory(persona_dir, 'persona')
-    process_directory(empresa_dir, 'empresa')
+    persona_info = process_directory(persona_dir, 'persona')
+    empresa_info = process_directory(empresa_dir, 'empresa')
+
+    for nombre_modulo, info in persona_info.items():
+        codigo_persona = info.get('codigo_persona')
+        codigo_empresa = empresa_info.get(nombre_modulo, {}).get('codigo_empresa', None)
+        data_persona = info.get('data_persona')
+        data_empresa = empresa_info.get(nombre_modulo, {}).get('data_empresa', None)
+        generate_script_for_module(
+            module={
+                'Nombre': nombre_modulo,
+                'Codigo': codigo_persona
+            },
+            tipo_persona=1,
+            tipo_empresa=2,
+            nombre_modulo=nombre_modulo,
+            codigo_persona=codigo_persona,
+            codigo_empresa=codigo_empresa,
+            valid_data_persona=data_persona,
+            valid_data_empresa=data_empresa
+        )
 
 if __name__ == '__main__':
     main()
