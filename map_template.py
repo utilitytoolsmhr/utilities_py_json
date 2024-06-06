@@ -78,7 +78,7 @@ def main(payload):
     except:
         final_out = {
                 "{{ target_name }}": {
-                    "Codigo": codigo,
+                    "Codigo": None,
                     "Nombre": nombre,
                     "Data": False
                 }
@@ -101,6 +101,11 @@ if __name__ == "__main__":
                 outfile.write(out)
 """
 
+def read_json(file_path):
+    with open(file_path, 'r', encoding="UTF-8") as file:
+        data = json.load(file)
+    return data
+
 def generate_script(module_name, target_name, target_key, script_name, codigo_persona, codigo_empresa):
     template = Template(template_script)
     script_content = template.render(
@@ -118,15 +123,31 @@ def generate_script(module_name, target_name, target_key, script_name, codigo_pe
     
     print(f"Script {script_path} generado exitosamente.")
 
+def get_modules_info(json_data, module_name):
+    modulos = json_data.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
+    for modulo in modulos:
+        if modulo.get('Nombre') == module_name:
+            codigo_persona = modulo.get('Codigo')
+            target_name = list(modulo.get('Data').keys())[1]  # Asumimos que el primer key es 'flag'
+            return codigo_persona, target_name
+    return None, None
+
+# Archivos JSON de entrada
+persona_json = read_json('persona.json')
+empresa_json = read_json('empresa.json')
+
 # Módulos a generar
 modules = [
-    {"module_name": "RESUMEN FLAG", "target_name": "ResumenFlags", "target_key": "Flags", "script_name": "resumen_flags", "codigo_persona": 865, "codigo_empresa": 868},
-    {"module_name": "SCORE PREDICTIVO CON VARIABLES", "target_name": "ResumenScoreRP3", "target_key": "ScorePredictivo", "script_name": "resumen_score", "codigo_persona": 822, "codigo_empresa": 822},
-    {"module_name": "REPRESENTANTES LEGALES", "target_name": "RepresentantesLegales", "target_key": "Legales", "script_name": "representantes_legales", "codigo_persona": 830, "codigo_empresa": 831},
-    {"module_name": "REGISTRO CREDITICIO CONSOLIDADO (RCC)", "target_name": "RegistroCrediticioConsolidado", "target_key": "Crediticio", "script_name": "registro_crediticio_consolidado", "codigo_persona": 865, "codigo_empresa": 868},
-    {"module_name": "SISTEMA FINANCIERO REGULADO (SBS) Y NO REGULADO (MICROFINANZAS)", "target_name": "SistemaFinanciero", "target_key": "Financiero", "script_name": "sistema_financiero", "codigo_persona": 865, "codigo_empresa": 868}
+    {"module_name": "Resumen Flag", "script_name": "resumen_flags"},
+    {"module_name": "Score Predictivo con Variables", "script_name": "resumen_score"},
+    {"module_name": "Representantes Legales", "script_name": "representantes_legales"},
+    {"module_name": "Registro Crediticio Consolidado (RCC)", "script_name": "registro_crediticio_consolidado"},
+    {"module_name": "Sistema Financiero Regulado (SBS) y No Regulado (Microfinanzas)", "script_name": "sistema_financiero"}
 ]
 
 # Generar los scripts para cada módulo
 for module in modules:
-    generate_script(**module)
+    codigo_persona, target_name = get_modules_info(persona_json, module["module_name"])
+    codigo_empresa, _ = get_modules_info(empresa_json, module["module_name"])
+    target_key = target_name.lower()  # Asumimos que el key es el nombre del target en minúsculas
+    generate_script(module["module_name"], target_name, target_key, module["script_name"], codigo_persona, codigo_empresa)
