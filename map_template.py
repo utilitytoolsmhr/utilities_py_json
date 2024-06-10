@@ -119,19 +119,19 @@ def generate_script(module_name, target_name, target_key, script_name, codigo_pe
     print(f"Script {script_path} generado exitosamente.")
 
 def get_modules_info(json_data, module_name):
-    modulos = json_data.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
+    modulos = json_data['Modulos']
     print(f"Buscando módulo: {module_name}")
     for modulo in modulos:
         print(f"Módulo encontrado: {modulo.get('Nombre')}")
         if modulo.get('Nombre') == module_name:
-            codigo_persona = modulo.get('Codigo')
+            codigo_persona = modulo.get('CodigoPersona')
+            codigo_empresa = modulo.get('CodigoEmpresa')
             target_name = next((key for key in modulo.get('Data').keys() if key != 'flag'), None)  # Ignorar 'flag'
-            return codigo_persona, target_name
-    return None, None
+            return codigo_persona, codigo_empresa, target_name
+    return None, None, None
 
-# Archivos JSON de entrada desde la ruta de ejecución
-persona_json = read_json('persona.json')
-empresa_json = read_json('empresa.json')
+# Archivo JSON de entrada desde la ruta de ejecución
+estructura_json = read_json('Estructura_completa.json')
 
 # Módulos a generar con nombres exactos ajustados
 modules = [
@@ -139,21 +139,39 @@ modules = [
     {"module_name": "SCORE PREDICTIVO CON VARIABLES", "script_name": "score_predictivo_con_variables"},
     {"module_name": "REPRESENTANTES LEGALES", "script_name": "representantes_legales"},
     {"module_name": "Registro Crediticio Consolidado (Rcc)", "script_name": "registro_crediticio_consolidado_rcc"},
-    {"module_name": "SISTEMA FINANCIERO REGULADO (SBS) Y NO REGULADO (MICROFINANZAS)", "script_name": "sistema_financiero_regulado_y_no_regulado"}
+    {"module_name": "SISTEMA FINANCIERO REGULADO (SBS) Y NO REGULADO (MICROFINANZAS)", "script_name": "sistema_financiero_regulado_y_no_regulado"},
+    {"module_name": "Deudas Impagas (Resumen comportamiento de pago)", "script_name": "deudas_impagas_resumen_comportamiento_de_pago"},
+    {"module_name": "Otras Deudas Impagas Resumen", "script_name": "otras_deudas_impagas_resumen"},
+    {"module_name": "Protestos por girador", "script_name": "protestos_por_girador"}
 ]
 
-# Generar los scripts para cada módulo
-for module in modules:
-    codigo_persona, target_name = get_modules_info(persona_json, module["module_name"])
-    if not target_name:
-        print(f"Error: No se encontró el target para el módulo {module['module_name']} en persona.json")
-        continue
-    
-    codigo_empresa, _ = get_modules_info(empresa_json, module["module_name"])
-    if not target_name:
-        print(f"Error: No se encontró el target para el módulo {module['module_name']} en empresa.json")
-        continue
+def interact():
+    for module in modules:
+        codigo_persona, codigo_empresa, target_name = get_modules_info(estructura_json, module["module_name"])
+        if not target_name:
+            print(f"Error: No se encontró el target para el módulo {module['module_name']} en Estructura_completa.json")
+            continue
 
-    target_key = to_snake_case(target_name)  # Convertir el nombre del target a snake_case
-    script_name = to_snake_case(module["module_name"])  # Convertir el nombre del módulo a snake_case
-    generate_script(module["module_name"], target_name, target_key, script_name, codigo_persona, codigo_empresa)
+        target_key = to_snake_case(target_name)  # Convertir el nombre del target a snake_case
+        script_name = to_snake_case(module["module_name"])  # Convertir el nombre del módulo a snake_case
+
+        # Mostrar información
+        print(f"\nMódulo: {module['module_name']}")
+        print(f"Código Persona: {codigo_persona}, Código Empresa: {codigo_empresa}")
+        print(f"Campos encontrados: {target_name}")
+        
+        # Generar JSON de Salida con cabeceras
+        output_json = {key: key for key in estructura_json["Modulos"][0]["Data"][target_name].keys()}
+        print(f"JSON de salida (cabeceras): {json.dumps(output_json, indent=4)}")
+
+        default_name = f"pe_modulo_{script_name}.py"
+        generate = input(f"¿Deseas generar el script {default_name}? (s/n): ").strip().lower()
+        if generate == 's':
+            custom_name = input(f"Ingresa un nombre para el script (presiona enter para aceptar {default_name}): ").strip()
+            script_name_to_use = custom_name if custom_name else script_name
+            generate_script(module["module_name"], target_name, target_key, script_name_to_use, codigo_persona, codigo_empresa)
+        else:
+            print(f"Script para el módulo {module['module_name']} no fue generado.")
+
+if __name__ == "__main__":
+    interact()
