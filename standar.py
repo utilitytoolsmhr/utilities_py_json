@@ -11,32 +11,36 @@ def load_json_files(directory):
             data_list.append(data)
     return data_list
 
-def merge_dicts(dict_list):
+def merge_dicts(dict_list, max_items=3):
     merged_dict = defaultdict(lambda: defaultdict(list))
     for d in dict_list:
         for key, value in d.items():
             if isinstance(value, dict):
                 for sub_key, sub_value in value.items():
                     if isinstance(sub_value, list):
-                        merged_dict[key][sub_key].extend(sub_value)
+                        merged_dict[key][sub_key].extend(sub_value[:max_items])
+                        merged_dict[key][sub_key] = merged_dict[key][sub_key][:max_items]
                     else:
                         merged_dict[key][sub_key] = sub_value
             else:
                 merged_dict[key] = value
     return dict(merged_dict)
 
-def compare_and_merge(json_data_list):
-    final_data = {}
+def compare_and_merge(json_data_list, max_items=3):
+    final_data = defaultdict(lambda: defaultdict(list))
     for data in json_data_list:
         for key, value in data.items():
-            if key not in final_data:
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, list):
+                        if len(final_data[key][sub_key]) < max_items:
+                            final_data[key][sub_key].extend(sub_value[:max_items])
+                            final_data[key][sub_key] = final_data[key][sub_key][:max_items]
+                    else:
+                        final_data[key][sub_key] = sub_value
+            else:
                 final_data[key] = value
-            elif final_data[key] != value:
-                print(f"Difference found in key '{key}':")
-                print(f"Value in final_data: {final_data[key]}")
-                print(f"Value in current data: {value}")
-                final_data[key] = value
-    return final_data
+    return dict(final_data)
 
 def main():
     persona_dir = 'Persona'
