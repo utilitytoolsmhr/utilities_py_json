@@ -1,101 +1,63 @@
-import json
 import os
+import json
 from collections import defaultdict
-from deepdiff import DeepDiff
 
 def load_json_files(directory):
-    json_files = []
-    for filename in os.listdir(directory):
-        if filename.endswith(".json"):
-            with open(os.path.join(directory, filename), 'r') as f:
-                try:
-                    json_files.append(json.load(f))
-                except json.JSONDecodeError as e:
-                    print(f"Error decoding JSON from file {filename}: {e}")
-    return json_files
+    json_files = [f for f in os.listdir(directory) if f.endswith('.json')]
+    data_list = []
+    for file in json_files:
+        with open(os.path.join(directory, file), 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            data_list.append(data)
+    return data_list
 
-def merge_json_data(json_files):
-    merged_data = defaultdict(list)
-    
-    for data in json_files:
-        for key, value in data.items():
-            if isinstance(value, list):
-                merged_data[key].extend(value)
+def merge_dicts(dict_list):
+    merged_dict = defaultdict(lambda: defaultdict(list))
+    for d in dict_list:
+        for key, value in d.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, list):
+                        merged_dict[key][sub_key].extend(sub_value)
+                    else:
+                        merged_dict[key][sub_key] = sub_value
             else:
-                merged_data[key].append(value)
-                
-    complete_json = {}
-    for key, value in merged_data.items():
-        complete_json[key] = value[:3]  # Limiting to 3 items for each list
-    
-    return complete_json
+                merged_dict[key] = value
+    return dict(merged_dict)
 
-def compare_json_structures(json_files):
-    base_structure = None
-    differences = []
-    
-    for i, data in enumerate(json_files):
-        if base_structure is None:
-            base_structure = data
-        else:
-            diff = DeepDiff(base_structure, data, ignore_order=True, exclude_paths="root['values_changed']")
-            filtered_diff = {
-                k: v for k, v in diff.items()
-                if any(key in k for key in ['type_changes', 'dictionary_item_added', 'dictionary_item_removed'])
-            }
-            if filtered_diff:
-                differences.append((i, filtered_diff))
-                
-    return differences
-
-def make_serializable(obj):
-    if isinstance(obj, (list, dict, str, int, float, bool, type(None))):
-        return obj
-    if isinstance(obj, set):
-        return list(obj)
-    if isinstance(obj, tuple):
-        return list(obj)
-    if isinstance(obj, bytes):
-        return obj.decode('utf-8')
-    return str(obj)
-
-def recursive_make_serializable(data):
-    if isinstance(data, dict):
-        return {key: recursive_make_serializable(value) for key, value in data.items()}
-    elif isinstance(data, list):
-        return [recursive_make_serializable(element) for element in data]
-    else:
-        return make_serializable(data)
+def compare_and_merge(json_data_list):
+    final_data = {}
+    for data in json_data_list:
+        for key, value in data.items():
+            if key not in final_data:
+                final_data[key] = value
+            elif final_data[key] != value:
+                print(f"Difference found in key '{key}':")
+                print(f"Value in final_data: {final_data[key]}")
+                print(f"Value in current data: {value}")
+                final_data[key] = value
+    return final_data
 
 def main():
-    persona_dir = "persona"
-    empresa_dir = "empresa"
+    persona_dir = 'Persona'
+    empresa_dir = 'Empresa'
     
-    persona_json_files = load_json_files(persona_dir)
-    empresa_json_files = load_json_files(empresa_dir)
-    
-    complete_persona_json = merge_json_data(persona_json_files)
-    complete_empresa_json = merge_json_data(empresa_json_files)
-    
-    with open('complete_persona.json', 'w') as f:
-        json.dump(recursive_make_serializable(complete_persona_json), f, indent=4)
-        
-    with open('complete_empresa.json', 'w') as f:
-        json.dump(recursive_make_serializable(complete_empresa_json), f, indent=4)
-    
-    persona_differences = compare_json_structures(persona_json_files)
-    empresa_differences = compare_json_structures(empresa_json_files)
-    
-    persona_differences_serializable = [(i, recursive_make_serializable(diff)) for i, diff in persona_differences]
-    empresa_differences_serializable = [(i, recursive_make_serializable(diff)) for i, diff in empresa_differences]
-    
-    with open('persona_structure_differences.json', 'w') as f:
-        json.dump(persona_differences_serializable, f, indent=4)
-        
-    with open('empresa_structure_differences.json', 'w') as f:
-        json.dump(empresa_differences_serializable, f, indent=4)
-    
-    print("JSON completos y reportes de diferencias de estructura generados exitosamente.")
+    persona_data_list = load_json_files(persona_dir)
+    empresa_data_list = load_json_files(empresa_dir)
 
-if __name__ == "__main__":
+    merged_persona = merge_dicts(persona_data_list)
+    merged_empresa = merge_dicts(empresa_data_list)
+
+    combined_structure = compare_and_merge([merged_persona, merged_empresa])
+
+    with open('Persona_completo.json', 'w', encoding='utf-8') as f:
+        json.dump(merged_persona, f, ensure_ascii=False, indent=4)
+
+    with open('Empresa_completo.json', 'w', encoding='utf-8') as f:
+        json.dump(merged_empresa, f, ensure_ascii=False, indent=4)
+
+    with open('Estructura_completa.json', 'w', encoding='utf-8') as f:
+        json.dump(combined_structure, f, ensure_ascii=False, indent=4)
+
+if __name__ == '__main__':
     main()
