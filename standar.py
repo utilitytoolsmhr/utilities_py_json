@@ -11,10 +11,19 @@ def load_json_files(directory):
             data_list.append(data)
     return data_list
 
+def clean_data(data):
+    if isinstance(data, dict):
+        return {k: clean_data(v) for k, v in data.items() if not (isinstance(v, dict) and "xsi:nil" in v and v["xsi:nil"])}
+    elif isinstance(data, list):
+        return [clean_data(item) for item in data]
+    else:
+        return data
+
 def merge_dicts(dict_list, max_items=3):
     merged_dict = defaultdict(lambda: defaultdict(list))
     for d in dict_list:
-        for key, value in d.items():
+        cleaned_data = clean_data(d)
+        for key, value in cleaned_data.items():
             if isinstance(value, dict):
                 for sub_key, sub_value in value.items():
                     if isinstance(sub_value, list):
@@ -29,7 +38,8 @@ def merge_dicts(dict_list, max_items=3):
 def compare_and_merge(json_data_list, max_items=3):
     final_data = defaultdict(lambda: defaultdict(list))
     for data in json_data_list:
-        for key, value in data.items():
+        cleaned_data = clean_data(data)
+        for key, value in cleaned_data.items():
             if isinstance(value, dict):
                 for sub_key, sub_value in value.items():
                     if isinstance(sub_value, list):
