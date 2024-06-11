@@ -15,7 +15,7 @@ def clean_data(data):
     if isinstance(data, dict):
         clean_dict = {}
         for k, v in data.items():
-            if isinstance(v, dict) and "xsi:nil" in v and v["xsi:nil"]:
+            if isinstance(v, dict) and ("xsi:nil" in v and v["xsi:nil"]):
                 clean_dict[k] = ""
             else:
                 clean_dict[k] = clean_data(v)
@@ -25,38 +25,37 @@ def clean_data(data):
     else:
         return data
 
-def merge_dicts(dict_list, max_items=3):
-    merged_dict = defaultdict(lambda: defaultdict(list))
-    for d in dict_list:
-        cleaned_data = clean_data(d)
-        for key, value in cleaned_data.items():
-            if isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, list):
-                        merged_dict[key][sub_key].extend(sub_value[:max_items])
-                        merged_dict[key][sub_key] = merged_dict[key][sub_key][:max_items]
-                    else:
-                        merged_dict[key][sub_key] = sub_value
-            else:
-                merged_dict[key] = value
-    return dict(merged_dict)
+def get_most_complete_module(modules):
+    max_keys = 0
+    most_complete_module = {}
+    for module in modules:
+        cleaned_module = clean_data(module)
+        num_keys = len(cleaned_module.keys())
+        if num_keys > max_keys:
+            max_keys = num_keys
+            most_complete_module = cleaned_module
+    return most_complete_module
 
-def compare_and_merge(json_data_list, max_items=3):
-    final_data = defaultdict(lambda: defaultdict(list))
-    for data in json_data_list:
-        cleaned_data = clean_data(data)
-        for key, value in cleaned_data.items():
-            if isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, list):
-                        if len(final_data[key][sub_key]) < max_items:
-                            final_data[key][sub_key].extend(sub_value[:max_items])
-                            final_data[key][sub_key] = final_data[key][sub_key][:max_items]
-                    else:
-                        final_data[key][sub_key] = sub_value
-            else:
-                final_data[key] = value
-    return dict(final_data)
+def process_json_data(data_list):
+    module_dict = defaultdict(list)
+    for data in data_list:
+        if 'dataSourceResponse' in data:
+            response = data['dataSourceResponse']
+            if 'GetReporteOnlineResponse' in response:
+                report = response['GetReporteOnlineResponse']
+                if 'ReporteCrediticio' in report:
+                    credit_report = report['ReporteCrediticio']
+                    if 'Modulos' in credit_report:
+                        modules = credit_report['Modulos']
+                        for module in modules['Modulo']:
+                            module_name = module['Nombre']
+                            module_dict[module_name].append(module['Data'])
+
+    most_complete_modules = {}
+    for module_name, modules in module_dict.items():
+        most_complete_modules[module_name] = get_most_complete_module(modules)
+    
+    return most_complete_modules
 
 def main():
     persona_dir = 'Persona'
@@ -65,19 +64,14 @@ def main():
     persona_data_list = load_json_files(persona_dir)
     empresa_data_list = load_json_files(empresa_dir)
 
-    merged_persona = merge_dicts(persona_data_list)
-    merged_empresa = merge_dicts(empresa_data_list)
+    persona_modules = process_json_data(persona_data_list)
+    empresa_modules = process_json_data(empresa_data_list)
 
-    combined_structure = compare_and_merge([merged_persona, merged_empresa])
+    with open('Persona_modulos_completos.json', 'w', encoding='utf-8') as f:
+        json.dump(persona_modules, f, ensure_ascii=False, indent=4)
 
-    with open('Persona_completo.json', 'w', encoding='utf-8') as f:
-        json.dump(merged_persona, f, ensure_ascii=False, indent=4)
-
-    with open('Empresa_completo.json', 'w', encoding='utf-8') as f:
-        json.dump(merged_empresa, f, ensure_ascii=False, indent=4)
-
-    with open('Estructura_completa.json', 'w', encoding='utf-8') as f:
-        json.dump(combined_structure, f, ensure_ascii=False, indent=4)
+    with open('Empresa_modulos_completos.json', 'w', encoding='utf-8') as f:
+        json.dump(empresa_modules, f, ensure_ascii=False, indent=4)
 
 if __name__ == '__main__':
     main()
