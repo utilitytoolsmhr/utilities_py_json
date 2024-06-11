@@ -1,22 +1,15 @@
+import json
 import os
 import sys
 import traceback
-import json
-from jinja2 import Template
-from pe_utils import text_fix, get_value, xsi_to_null
-import re
+from datetime import datetime
 
-# Crear la carpeta /scripts si no existe
-output_dir = 'scripts'
-os.makedirs(output_dir, exist_ok=True)
-
-# Plantilla para los scripts Python
-template_script = """
+def generate_script_from_json(json_data, module_name, target_name, codigo_persona, codigo_empresa=None):
+    script = f"""
 # ==================================
-# Modulo: {{ module_name }}
-# Autor: José Reyes         
-# Correo: jose.reyes3@equifax.com
-# Fecha: 24-05-2023    
+# Modulo: {module_name.upper()}
+# Autor: Generado automáticamente
+# Fecha: {datetime.now().strftime('%d-%m-%Y')}
 # ==================================
 
 import os
@@ -35,30 +28,28 @@ def main(payload):
     except:
         primaryConsumer = payload.get('applicants').get('primaryConsumer')
 
-    #Mapeo respuesta DSS
+    tipoPersona = primaryConsumer.get('personalInformation').get('tipoPersona')
+
     try:
         # Captura respuesta API-DSS
         payload = primaryConsumer.get('equifax-pe-middleware')
-
+        
         # Reemplaza por null tag[xsi] presentes en payload
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre  = '{{ module_name }}'
-        target  = '{{ target_name }}'
-        codigo_persona = {{ codigo_persona }}
-        codigo_empresa = {{ codigo_empresa }}
-        tipo_documento = primaryConsumer.get('documentType')
-        codigo = codigo_persona if tipo_documento == '1' else codigo_empresa
+        nombre  = '{module_name}'
+        target  = '{target_name}'
+        codigo  = codigo_persona if tipoPersona == 1 else {codigo_empresa if codigo_empresa is not None else codigo_persona}
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
-        modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
-        
+        modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]  
+
         # Filtra por target si existen múltiples módulos con el mismo nombre
         if len(modulo) > 1: 
             modulo_filtrado = [modulo_filtrado for modulo_filtrado in modulo if modulo_filtrado.get('Data').get(target)]
             modulo = modulo_filtrado if len(modulo_filtrado) == 1 else modulo
 
-        # Data del módulo
+        # Data del modulo
         nodo = modulo[0].get('Data').get(target)
     except:
         traceback.print_exc()
@@ -67,140 +58,99 @@ def main(payload):
     ################### Functions ###################
     #################################################
 
-    def get_score(ob, key):
-        score = ob.get('ScoreHistoricos', {}).get(key)
-        if score is not None:
-            return {
-                "Periodo":  text_fix(score.get('Periodo')),
-                "Riesgo":   text_fix(score.get('Riesgo'))
-            }
-        else:
-            return {
-                "Periodo":  None,
-                "Riesgo":   None
-            }
+"""
+    if isinstance(json_data, dict):
+        for key, value in json_data.items():
+            if isinstance(value, dict):
+                script += f"""
+    def process_{target_name.lower()}_{key}(data):
+        return {{
+"""
+                for k, v in value.items():
+                    script += f"            '{k}': data.get('{k}', ''),\n"
+                script += f"        }}\n"
 
-    def empresaRelacionada(data):
-        return [
-            {
-                "TipoDocumento":            text_fix(ob.get('TipoDocumento')),
-                "NumeroDocumento":          text_fix(ob.get('NumeroDocumento')),
-                "Nombre":                   text_fix(ob.get('Nombre')),
-                "Relacion":                 text_fix(ob.get('Relacion')),
-                "ScoreHistoricos": {
-                    "ScoreActual":          get_score(ob,'ScoreActual'),
-                    "ScoreAnterior":        get_score(ob,'ScoreAnterior'),
-                    "ScoreHace12Meses":     get_score(ob,'ScoreHace12Meses')
-                }
-            } for ob in data
-        ]
-
+    script += """
     #################################################
     ################# Data Processing ###############
     #################################################
 
-    # Implementar la lógica de procesamiento de datos aquí
+    result = {}
 
+"""
+    if isinstance(json_data, dict):
+        for key in json_data.keys():
+            if isinstance(json_data[key], dict):
+                script += f"    result['{key}'] = process_{target_name.lower()}_{key}(nodo.get('{key}', {{}}))\n"
+
+    script += f"""
     #################################################
     ################## Set Output ###################
     #################################################
-        
+
     try:
-        final_out = {
-                "{{ target_name }}": {
-                    "Codigo": codigo,
+        final_out = {{
+                "{target_name}": {{
+                    "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": modulo[0].get('Data').get('flag'),
-                    "{{ target_key }}": get_value(objeto=nodo, lista='{{ target_key }}', func=empresaRelacionada)
-                }
-            }
+                    "Details": result
+                }}
+            }}
     except:
-        final_out = {
-                "{{ target_name }}": {
-                    "Codigo": codigo,
-                    "Nombre": nombre,
+        final_out = {{
+                "{target_name}": {{
+                    "Codigo": codigo, 
+                    "Nombre": nombre, 
                     "Data": False
-                }
-            }
+                }}
+            }}
     return final_out
+
 """
 
-def read_json(file_path):
-    with open(file_path, 'r', encoding="UTF-8") as file:
-        data = json.load(file)
-    return data
+    return script
 
-def to_snake_case(name):
-    return re.sub(r'\s+', '_', re.sub(r'([a-z])([A-Z])', r'\1_\2', name)).lower()
+def generate_scripts_for_modules(persona_data, empresa_data):
+    directory = 'scripts_final'
+    os.makedirs(directory, exist_ok=True)
 
-def generate_script(module_name, target_name, target_key, script_name, codigo_persona, codigo_empresa, fields):
-    template = Template(template_script)
-    script_content = template.render(
-        module_name=module_name, 
-        target_name=target_name, 
-        target_key=target_key, 
-        script_name=script_name,
-        codigo_persona=codigo_persona,
-        codigo_empresa=codigo_empresa
-    )
-    
-    script_path = os.path.join(output_dir, f"pe_modulo_{script_name}.py")
-    with open(script_path, 'w', encoding="UTF-8") as file:
-        file.write(script_content)
-    
-    print(f"Script {script_path} generado exitosamente.")
+    processed_targets = {}
 
-def get_modules_info(json_data):
-    try:
-        modulos = json_data.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
-    except AttributeError:
-        print("Error: La estructura del JSON no es la esperada.")
-        return []
+    # Helper function to convert camelCase to snake_case
+    def camel_to_snake(name):
+        import re
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-    modules_info = []
-    for modulo in modulos:
-        nombre = modulo.get('Nombre')
-        codigo = modulo.get('Codigo')
-        target_name = next((key for key in modulo.get('Data').keys() if key != 'flag'), None)
-        fields = modulo.get('Data').get(target_name)
-        modules_info.append((nombre, codigo, target_name, fields))
+    # Process both persona and empresa data
+    for data, entity in [(persona_data, 'persona'), (empresa_data, 'empresa')]:
+        for module_name, module_data in data.items():
+            if 'Data' in module_data and 'flag' in module_data['Data'] and module_data['Data']['flag']:
+                for target_name, target_data in module_data['Data'].items():
+                    if target_name != 'flag':
+                        codigo = module_data['Codigo']
+                        if target_name not in processed_targets:
+                            processed_targets[target_name] = {'persona': None, 'empresa': None}
+                        processed_targets[target_name][entity] = codigo
 
-    return modules_info
+                        script = generate_script_from_json(target_data if isinstance(target_data, dict) else {},
+                                                           module_name, target_name, 
+                                                           processed_targets[target_name]['persona'], 
+                                                           processed_targets[target_name]['empresa'])
 
-# Archivos JSON de entrada desde la ruta de ejecución
-empresa_json = read_json('empresa.json')
-persona_json = read_json('persona.json')
+                        prefix = 'empresa_' if processed_targets[target_name]['empresa'] is not None else ''
+                        file_name = f'{directory}/pe_modulo_{prefix}{camel_to_snake(target_name)}.py'
+                        with open(file_name, 'w') as f:
+                            f.write(script)
+                        print(f'Script generado para el módulo: {module_name}, target: {target_name} en {file_name}')
 
-def interact():
-    # Combinar módulos de ambos JSONs
-    modules_info = get_modules_info(empresa_json) + get_modules_info(persona_json)
+# Leer los JSONs de persona y empresa
+with open('persona.json') as f:
+    persona_data = json.load(f)
 
-    for module_info in modules_info:
-        module_name, codigo, target_name, fields = module_info
-        if not target_name:
-            print(f"Error: No se encontró el target para el módulo {module_name} en los JSONs.")
-            continue
+with open('empresa.json') as f:
+    empresa_data = json.load(f)
 
-        target_key = to_snake_case(target_name)  # Convertir el nombre del target a snake_case
-        script_name = to_snake_case(module_name)  # Convertir el nombre del módulo a snake_case
-
-        # Mostrar información
-        print(f"\nMódulo: {module_name}")
-        print(f"Código: {codigo}")
-        print(f"Campos encontrados: {target_name}")
-        
-        # Generar JSON de Salida con cabeceras
-        output_json = {key: key for key in fields.keys()} if fields else {}
-        print(f"JSON de salida (cabeceras): {json.dumps(output_json, indent=4)}")
-
-        default_name = f"pe_modulo_{script_name}.py"
-        generate = input(f"¿Deseas generar el script {default_name}? (s/n): ").strip().lower()
-        if generate == 's':
-            custom_name = input(f"Ingresa un nombre para el script (presiona enter para aceptar {default_name}): ").strip()
-            script_name_to_use = custom_name if custom_name else script_name
-            generate_script(module_name, target_name, target_key, script_name_to_use, codigo, codigo, fields)
-        else:
-            print(f"Script para el módulo {module_name} no fue generado.")
-
-if __name__ == "__main__":
-    interact()
+# Generar scripts
+generate_scripts_for_modules(persona_data, empresa_data)
