@@ -49,11 +49,15 @@ def process_json_data(data_list):
                         modules = credit_report['Modulos']
                         for module in modules['Modulo']:
                             module_name = module['Nombre']
-                            module_dict[module_name].append(module['Data'])
+                            module_dict[module_name].append(module)
 
     most_complete_modules = {}
     for module_name, modules in module_dict.items():
-        most_complete_modules[module_name] = get_most_complete_module(modules)
+        most_complete_module = get_most_complete_module([module['Data'] for module in modules])
+        for module in modules:
+            if module['Data'] == most_complete_module:
+                most_complete_modules[module_name] = module
+                break
     
     return most_complete_modules
 
