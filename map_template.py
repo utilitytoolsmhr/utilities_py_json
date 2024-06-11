@@ -3,7 +3,7 @@ import sys
 import traceback
 import json
 from jinja2 import Template
-from pe_utils import text_fix, float_fix, int_fix, get_value, xsi_to_null
+from pe_utils import text_fix, get_value, xsi_to_null
 import re
 
 # Crear la carpeta /scripts si no existe
@@ -12,6 +12,12 @@ os.makedirs(output_dir, exist_ok=True)
 
 # Plantilla para los scripts Python
 template_script = """
+# ==================================
+# Modulo: {{ module_name }}
+# Autor: José Reyes         
+# Correo: jose.reyes3@equifax.com
+# Fecha: 24-05-2023    
+# ==================================
 
 import os
 import sys
@@ -61,7 +67,33 @@ def main(payload):
     ################### Functions ###################
     #################################################
 
-    # Definir funciones de procesamiento de datos aquí
+    def get_score(ob, key):
+        score = ob.get('ScoreHistoricos', {}).get(key)
+        if score is not None:
+            return {
+                "Periodo":  text_fix(score.get('Periodo')),
+                "Riesgo":   text_fix(score.get('Riesgo'))
+            }
+        else:
+            return {
+                "Periodo":  None,
+                "Riesgo":   None
+            }
+
+    def empresaRelacionada(data):
+        return [
+            {
+                "TipoDocumento":            text_fix(ob.get('TipoDocumento')),
+                "NumeroDocumento":          text_fix(ob.get('NumeroDocumento')),
+                "Nombre":                   text_fix(ob.get('Nombre')),
+                "Relacion":                 text_fix(ob.get('Relacion')),
+                "ScoreHistoricos": {
+                    "ScoreActual":          get_score(ob,'ScoreActual'),
+                    "ScoreAnterior":        get_score(ob,'ScoreAnterior'),
+                    "ScoreHace12Meses":     get_score(ob,'ScoreHace12Meses')
+                }
+            } for ob in data
+        ]
 
     #################################################
     ################# Data Processing ###############
@@ -79,7 +111,7 @@ def main(payload):
                     "Codigo": codigo,
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": modulo[0].get('Data').get('flag'),
-                    "{{ target_key }}": get_value(objeto=nodo, lista='{{ target_key }}', func={{ target_key }})
+                    "{{ target_key }}": get_value(objeto=nodo, lista='{{ target_key }}', func=empresaRelacionada)
                 }
             }
     except:
