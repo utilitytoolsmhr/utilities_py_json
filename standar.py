@@ -13,7 +13,13 @@ def load_json_files(directory):
 
 def clean_data(data):
     if isinstance(data, dict):
-        return {k: clean_data(v) for k, v in data.items() if not (isinstance(v, dict) and "xsi:nil" in v and v["xsi:nil"])}
+        clean_dict = {}
+        for k, v in data.items():
+            if isinstance(v, dict) and "xsi:nil" in v and v["xsi:nil"]:
+                clean_dict[k] = ""
+            else:
+                clean_dict[k] = clean_data(v)
+        return clean_dict
     elif isinstance(data, list):
         return [clean_data(item) for item in data]
     else:
