@@ -3,7 +3,7 @@ import sys
 import traceback
 import json
 from jinja2 import Template
-from pe_utils import text_fix, float_fix, int_fix
+from pe_utils import text_fix, float_fix, int_fix, get_value, xsi_to_null
 import re
 
 # Crear la carpeta /scripts si no existe
@@ -12,11 +12,11 @@ os.makedirs(output_dir, exist_ok=True)
 
 # Plantilla para los scripts Python
 template_script = """
+
 import os
 import sys
 import traceback
-import json
-from pe_utils import text_fix, float_fix, int_fix
+from pe_utils import text_fix, get_value, xsi_to_null
 
 def main(payload):
 
@@ -25,13 +25,25 @@ def main(payload):
     #################################################
 
     try:
-        # Determinar si es persona o empresa
-        tipo_documento = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('DatosPrincipales').get('TipoDocumento')
-        codigo = '{{ codigo_persona }}' if tipo_documento == 'DNI' else '{{ codigo_empresa }}'
-        
-        # Seleccionamos el módulo target
+        primaryConsumer = payload.get('applicants')[0]
+    except:
+        primaryConsumer = payload.get('applicants').get('primaryConsumer')
+
+    #Mapeo respuesta DSS
+    try:
+        # Captura respuesta API-DSS
+        payload = primaryConsumer.get('equifax-pe-middleware')
+
+        # Reemplaza por null tag[xsi] presentes en payload
+        xsi_to_null(payload)
+
+        # Seleccionamos el modulo target
         nombre  = '{{ module_name }}'
         target  = '{{ target_name }}'
+        codigo_persona = {{ codigo_persona }}
+        codigo_empresa = {{ codigo_empresa }}
+        tipo_documento = primaryConsumer.get('documentType')
+        codigo = codigo_persona if tipo_documento == '1' else codigo_empresa
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
         
@@ -42,55 +54,43 @@ def main(payload):
 
         # Data del módulo
         nodo = modulo[0].get('Data').get(target)
-        
-        # Aplicar funciones de pe_utils.py
-        for key, value in nodo.items():
-            if isinstance(value, str):
-                nodo[key] = text_fix(value)
-            elif isinstance(value, float):
-                nodo[key] = float_fix(value)
-            elif isinstance(value, int):
-                nodo[key] = int_fix(value)
-
     except:
         traceback.print_exc()
+
+    #################################################
+    ################### Functions ###################
+    #################################################
+
+    # Definir funciones de procesamiento de datos aquí
 
     #################################################
     ################# Data Processing ###############
     #################################################
 
+    # Implementar la lógica de procesamiento de datos aquí
+
+    #################################################
+    ################## Set Output ###################
+    #################################################
+        
     try:
         final_out = {
                 "{{ target_name }}": {
                     "Codigo": codigo,
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": modulo[0].get('Data').get('flag'),
-                    "{{ target_key }}": nodo if nodo else None
+                    "{{ target_key }}": get_value(objeto=nodo, lista='{{ target_key }}', func={{ target_key }})
                 }
             }
     except:
         final_out = {
                 "{{ target_name }}": {
-                    "Codigo": None,
+                    "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": False
                 }
             }
     return final_out
-
-#################################################
-################## TEST #########################
-#################################################
-if len(sys.argv) != 2:
-    print("Uso: python {{ script_name }}.py <archivo_json>")
-else:
-    archivo_json = sys.argv[1]
-    with open(archivo_json, 'r', encoding="UTF-8") as file:
-        request = json.load(file)
-        out = json.dumps(main(request), indent=4)
-        print(out)
-        with open('respond.json', 'w', encoding="UTF-8") as outfile:
-            outfile.write(out)
 """
 
 def read_json(file_path):
@@ -101,7 +101,7 @@ def read_json(file_path):
 def to_snake_case(name):
     return re.sub(r'\s+', '_', re.sub(r'([a-z])([A-Z])', r'\1_\2', name)).lower()
 
-def generate_script(module_name, target_name, target_key, script_name, codigo_persona, codigo_empresa):
+def generate_script(module_name, target_name, target_key, script_name, codigo_persona, codigo_empresa, fields):
     template = Template(template_script)
     script_content = template.render(
         module_name=module_name, 
@@ -118,50 +118,47 @@ def generate_script(module_name, target_name, target_key, script_name, codigo_pe
     
     print(f"Script {script_path} generado exitosamente.")
 
-def get_modules_info(json_data, module_name):
-    modulos = json_data['Modulos']
-    print(f"Buscando módulo: {module_name}")
+def get_modules_info(json_data):
+    try:
+        modulos = json_data.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
+    except AttributeError:
+        print("Error: La estructura del JSON no es la esperada.")
+        return []
+
+    modules_info = []
     for modulo in modulos:
-        print(f"Módulo encontrado: {modulo.get('Nombre')}")
-        if modulo.get('Nombre') == module_name:
-            codigo_persona = modulo.get('CodigoPersona')
-            codigo_empresa = modulo.get('CodigoEmpresa')
-            target_name = next((key for key in modulo.get('Data').keys() if key != 'flag'), None)  # Ignorar 'flag'
-            return codigo_persona, codigo_empresa, target_name
-    return None, None, None
+        nombre = modulo.get('Nombre')
+        codigo = modulo.get('Codigo')
+        target_name = next((key for key in modulo.get('Data').keys() if key != 'flag'), None)
+        fields = modulo.get('Data').get(target_name)
+        modules_info.append((nombre, codigo, target_name, fields))
 
-# Archivo JSON de entrada desde la ruta de ejecución
-estructura_json = read_json('Estructura_completa.json')
+    return modules_info
 
-# Módulos a generar con nombres exactos ajustados
-modules = [
-    {"module_name": "Resumen Flag", "script_name": "resumen_flags"},
-    {"module_name": "SCORE PREDICTIVO CON VARIABLES", "script_name": "score_predictivo_con_variables"},
-    {"module_name": "REPRESENTANTES LEGALES", "script_name": "representantes_legales"},
-    {"module_name": "Registro Crediticio Consolidado (Rcc)", "script_name": "registro_crediticio_consolidado_rcc"},
-    {"module_name": "SISTEMA FINANCIERO REGULADO (SBS) Y NO REGULADO (MICROFINANZAS)", "script_name": "sistema_financiero_regulado_y_no_regulado"},
-    {"module_name": "Deudas Impagas (Resumen comportamiento de pago)", "script_name": "deudas_impagas_resumen_comportamiento_de_pago"},
-    {"module_name": "Otras Deudas Impagas Resumen", "script_name": "otras_deudas_impagas_resumen"},
-    {"module_name": "Protestos por girador", "script_name": "protestos_por_girador"}
-]
+# Archivos JSON de entrada desde la ruta de ejecución
+empresa_json = read_json('empresa.json')
+persona_json = read_json('persona.json')
 
 def interact():
-    for module in modules:
-        codigo_persona, codigo_empresa, target_name = get_modules_info(estructura_json, module["module_name"])
+    # Combinar módulos de ambos JSONs
+    modules_info = get_modules_info(empresa_json) + get_modules_info(persona_json)
+
+    for module_info in modules_info:
+        module_name, codigo, target_name, fields = module_info
         if not target_name:
-            print(f"Error: No se encontró el target para el módulo {module['module_name']} en Estructura_completa.json")
+            print(f"Error: No se encontró el target para el módulo {module_name} en los JSONs.")
             continue
 
         target_key = to_snake_case(target_name)  # Convertir el nombre del target a snake_case
-        script_name = to_snake_case(module["module_name"])  # Convertir el nombre del módulo a snake_case
+        script_name = to_snake_case(module_name)  # Convertir el nombre del módulo a snake_case
 
         # Mostrar información
-        print(f"\nMódulo: {module['module_name']}")
-        print(f"Código Persona: {codigo_persona}, Código Empresa: {codigo_empresa}")
+        print(f"\nMódulo: {module_name}")
+        print(f"Código: {codigo}")
         print(f"Campos encontrados: {target_name}")
         
         # Generar JSON de Salida con cabeceras
-        output_json = {key: key for key in estructura_json["Modulos"][0]["Data"][target_name].keys()}
+        output_json = {key: key for key in fields.keys()} if fields else {}
         print(f"JSON de salida (cabeceras): {json.dumps(output_json, indent=4)}")
 
         default_name = f"pe_modulo_{script_name}.py"
@@ -169,9 +166,9 @@ def interact():
         if generate == 's':
             custom_name = input(f"Ingresa un nombre para el script (presiona enter para aceptar {default_name}): ").strip()
             script_name_to_use = custom_name if custom_name else script_name
-            generate_script(module["module_name"], target_name, target_key, script_name_to_use, codigo_persona, codigo_empresa)
+            generate_script(module_name, target_name, target_key, script_name_to_use, codigo, codigo, fields)
         else:
-            print(f"Script para el módulo {module['module_name']} no fue generado.")
+            print(f"Script para el módulo {module_name} no fue generado.")
 
 if __name__ == "__main__":
     interact()
