@@ -30,7 +30,7 @@ def get_most_complete_module(modules):
     most_complete_module = {}
     for module in modules:
         cleaned_module = clean_data(module)
-        num_keys = len(cleaned_module.keys())
+        num_keys = len(json.dumps(cleaned_module))
         if num_keys > max_keys:
             max_keys = num_keys
             most_complete_module = cleaned_module
@@ -53,9 +53,9 @@ def process_json_data(data_list):
 
     most_complete_modules = {}
     for module_name, modules in module_dict.items():
-        most_complete_module = get_most_complete_module([module['Data'] for module in modules])
+        most_complete_module_data = get_most_complete_module([module['Data'] for module in modules])
         for module in modules:
-            if module['Data'] == most_complete_module:
+            if module['Data'] == most_complete_module_data:
                 most_complete_modules[module_name] = module
                 break
     
