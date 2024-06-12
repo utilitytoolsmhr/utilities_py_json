@@ -21,11 +21,11 @@ def clean_data(data):
                 clean_dict[k] = clean_data(v)
         return clean_dict
     elif isinstance(data, list):
-        return [clean_data(item) for item in data]
+        return [clean_data(item) for item in data if not ("xsi:nil" in item and item["xsi:nil"])]
     else:
         return data
 
-def get_most_complete_module(modules):
+def get_most_complete_module(modules, max_items=2):
     max_keys = 0
     most_complete_module = {}
     for module in modules:
@@ -34,6 +34,10 @@ def get_most_complete_module(modules):
         if num_keys > max_keys:
             max_keys = num_keys
             most_complete_module = cleaned_module
+    # Limitar a los primeros 'max_items' elementos si es una lista
+    for key, value in most_complete_module.items():
+        if isinstance(value, list):
+            most_complete_module[key] = value[:max_items]
     return most_complete_module
 
 def process_json_data(data_list):
@@ -50,6 +54,7 @@ def process_json_data(data_list):
                         for module in modules['Modulo']:
                             module_name = module['Nombre']
                             module_dict[module_name].append(module)
+                            print(f"Processed module: {module_name}")
 
     most_complete_modules = {}
     for module_name, modules in module_dict.items():
@@ -57,6 +62,7 @@ def process_json_data(data_list):
         for module in modules:
             if module['Data'] == most_complete_module_data:
                 most_complete_modules[module_name] = module
+                print(f"Selected most complete module: {module_name}")
                 break
     
     return most_complete_modules
@@ -71,11 +77,11 @@ def main():
     persona_modules = process_json_data(persona_data_list)
     empresa_modules = process_json_data(empresa_data_list)
 
-    with open('Persona_modulos_completos.json', 'w', encoding='utf-8') as f:
-        json.dump(persona_modules, f, ensure_ascii=False, indent=4)
+    # Combinar módulos de persona y empresa
+    combined_modules = {**persona_modules, **empresa_modules}
 
-    with open('Empresa_modulos_completos.json', 'w', encoding='utf-8') as f:
-        json.dump(empresa_modules, f, ensure_ascii=False, indent=4)
+    with open('Modulos_completos.json', 'w', encoding='utf-8') as f:
+        json.dump(combined_modules, f, ensure_ascii=False, indent=4)
 
 if __name__ == '__main__':
     main()
