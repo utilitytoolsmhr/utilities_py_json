@@ -87,9 +87,9 @@ def main():
     combined_modules = {**persona_modules, **empresa_modules}
 
     # Guardar todos los módulos en un único archivo JSON
-    with open('Modulos_completos.json', 'w', encoding='utf-8') as f:
+    with open('modulos_completos.json', 'w', encoding='utf-8') as f:
         json.dump(combined_modules, f, ensure_ascii=False, indent=4)
-        print(f'Saved combined modules to Modulos_completos.json')
+        print(f'Saved combined modules to modulos_completos.json')
 
 if __name__ == '__main__':
     main()
