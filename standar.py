@@ -25,6 +25,21 @@ def clean_data(data):
     else:
         return data
 
+def merge_dicts(dict_list, max_items=2):
+    merged_dict = defaultdict(lambda: defaultdict(list))
+    for d in dict_list:
+        for key, value in d.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, list):
+                        merged_dict[key][sub_key].extend(sub_value[:max_items])
+                        merged_dict[key][sub_key] = merged_dict[key][sub_key][:max_items]
+                    else:
+                        merged_dict[key][sub_key] = sub_value
+            else:
+                merged_dict[key] = value
+    return {k: dict(v) for k, v in merged_dict.items()}
+
 def get_most_complete_module(modules):
     max_keys = 0
     most_complete_module = {}
@@ -84,7 +99,7 @@ def main():
     empresa_modules = process_json_data(empresa_data_list)
 
     # Combinar módulos de persona y empresa
-    combined_modules = {**persona_modules, **empresa_modules}
+    combined_modules = merge_dicts([persona_modules, empresa_modules])
 
     # Guardar todos los módulos en un único archivo JSON
     with open('Modulos_completos.json', 'w', encoding='utf-8') as f:
