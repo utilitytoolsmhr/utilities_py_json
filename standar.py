@@ -64,6 +64,9 @@ def process_json_data(data_list):
                 most_complete_modules[module_name] = module
                 print(f"Selected most complete module: {module_name}")
                 break
+        if module_name not in most_complete_modules:
+            most_complete_modules[module_name] = modules[0]  # Add at least one module if none is selected
+            print(f"Added at least one module: {module_name}")
     
     return most_complete_modules
 
