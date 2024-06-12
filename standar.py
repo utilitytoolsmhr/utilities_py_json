@@ -16,7 +16,7 @@ def clean_data(data):
         clean_dict = {}
         for k, v in data.items():
             if isinstance(v, dict) and ("xsi:nil" in v and v["xsi:nil"]):
-                clean_dict[k] = ""
+                clean_dict[k] = "No se encontraron datos para esta variable, debe analizarse a futuro"
             else:
                 clean_dict[k] = clean_data(v)
         return clean_dict
