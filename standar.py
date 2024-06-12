@@ -15,16 +15,13 @@ def clean_data(data):
     if isinstance(data, dict):
         clean_dict = {}
         for k, v in data.items():
-            if isinstance(v, dict):
-                if "xsi:nil" in v and v["xsi:nil"]:
-                    clean_dict[k] = "sin data"
-                else:
-                    clean_dict[k] = clean_data(v)
+            if isinstance(v, dict) and ("xsi:nil" in v and v["xsi:nil"]):
+                clean_dict[k] = "sin data"
             else:
                 clean_dict[k] = clean_data(v)
         return clean_dict
     elif isinstance(data, list):
-        return [clean_data(item) for item in data[:2]]
+        return [clean_data(item) for item in data[:2]]  # Limit lists to 2 items
     else:
         return data
 
@@ -44,7 +41,7 @@ def get_most_complete_module(modules):
     return most_complete_module
 
 def process_json_data(data_list):
-    report_dict = defaultdict(list)
+    module_dict = defaultdict(list)
     for data in data_list:
         if 'dataSourceResponse' in data:
             response = data['dataSourceResponse']
@@ -55,26 +52,26 @@ def process_json_data(data_list):
                     if 'Modulos' in credit_report:
                         modules = credit_report['Modulos']
                         for module in modules['Modulo']:
-                            report_code = module['Codigo']
-                            report_dict[report_code].append(module)
-                            print(f"Processed module: {module['Nombre']} with code: {report_code}")
+                            module_name = module['Nombre']
+                            module_dict[module_name].append(module)
+                            print(f"Processed module: {module_name}")
 
-    most_complete_reports = {}
-    for report_code, modules in report_dict.items():
+    most_complete_modules = {}
+    for module_name, modules in module_dict.items():
         most_complete_module_data = get_most_complete_module([module['Data'] for module in modules])
         for module in modules:
             if module['Data'] == most_complete_module_data:
-                most_complete_reports[report_code] = module
-                print(f"Selected most complete module for code {report_code}: {module['Nombre']}")
+                most_complete_modules[module_name] = module
+                print(f"Selected most complete module: {module_name}")
                 break
-        if report_code not in most_complete_reports:
+        if module_name not in most_complete_modules:
             # Add the least complete module if none is selected
             least_complete_module_data = clean_data(modules[0]['Data'])
-            most_complete_reports[report_code] = modules[0]
-            most_complete_reports[report_code]['Data'] = least_complete_module_data
-            print(f"Added least complete module for code {report_code}: {modules[0]['Nombre']}")
+            most_complete_modules[module_name] = modules[0]
+            most_complete_modules[module_name]['Data'] = least_complete_module_data
+            print(f"Added least complete module: {module_name}")
 
-    return most_complete_reports
+    return most_complete_modules
 
 def main():
     persona_dir = 'Persona'
@@ -83,18 +80,16 @@ def main():
     persona_data_list = load_json_files(persona_dir)
     empresa_data_list = load_json_files(empresa_dir)
 
-    persona_reports = process_json_data(persona_data_list)
-    empresa_reports = process_json_data(empresa_data_list)
+    persona_modules = process_json_data(persona_data_list)
+    empresa_modules = process_json_data(empresa_data_list)
 
     # Combinar módulos de persona y empresa
-    combined_reports = {**persona_reports, **empresa_reports}
+    combined_modules = {**persona_modules, **empresa_modules}
 
-    # Guardar cada reporte en un archivo separado
-    for report_code, report in combined_reports.items():
-        filename = f'Reporte_{report_code}.json'
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(report, f, ensure_ascii=False, indent=4)
-        print(f'Saved report {report_code} to {filename}')
+    # Guardar todos los módulos en un único archivo JSON
+    with open('Modulos_completos.json', 'w', encoding='utf-8') as f:
+        json.dump(combined_modules, f, ensure_ascii=False, indent=4)
+        print(f'Saved combined modules to Modulos_completos.json')
 
 if __name__ == '__main__':
     main()
