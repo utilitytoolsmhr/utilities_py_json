@@ -4,11 +4,11 @@ import sys
 import traceback
 from datetime import datetime
 
-def generate_script_from_json(json_data, module_name, target_name, codigo_persona, codigo_empresa=None):
+def generate_script_from_json(json_data, module_name, target_name, codigo_persona, codigo_empresa):
     script = f"""
 # ==================================
 # Modulo: {module_name.upper()}
-# Autor: Generado automáticamente
+# Autor: Mario Henríquez Reyes
 # Fecha: {datetime.now().strftime('%d-%m-%Y')}
 # ==================================
 
@@ -40,7 +40,7 @@ def main(payload):
         # Seleccionamos el modulo target
         nombre  = '{module_name}'
         target  = '{target_name}'
-        codigo  = codigo_persona if tipoPersona == 1 else {codigo_empresa if codigo_empresa is not None else codigo_persona}
+        codigo  = {codigo_persona if codigo_persona else 0} if tipoPersona == 1 else {codigo_empresa if codigo_empresa else 0}
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]  
 
@@ -111,11 +111,9 @@ def main(payload):
 
     return script
 
-def generate_scripts_for_modules(persona_data, empresa_data):
+def generate_scripts_for_modules(modules_data):
     directory = 'scripts_final'
     os.makedirs(directory, exist_ok=True)
-
-    processed_targets = {}
 
     # Helper function to convert camelCase to snake_case
     def camel_to_snake(name):
@@ -123,34 +121,29 @@ def generate_scripts_for_modules(persona_data, empresa_data):
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-    # Process both persona and empresa data
-    for data, entity in [(persona_data, 'persona'), (empresa_data, 'empresa')]:
-        for module_name, module_data in data.items():
-            if 'Data' in module_data and 'flag' in module_data['Data'] and module_data['Data']['flag']:
-                for target_name, target_data in module_data['Data'].items():
-                    if target_name != 'flag':
-                        codigo = module_data['Codigo']
-                        if target_name not in processed_targets:
-                            processed_targets[target_name] = {'persona': None, 'empresa': None}
-                        processed_targets[target_name][entity] = codigo
+    for module_name, module_data in modules_data.items():
+        if '_p' in module_name or '_e' in module_name:
+            base_module_name = module_name[:-2]
+            persona_key = f"{base_module_name}_p"
+            empresa_key = f"{base_module_name}_e"
+            codigo_persona = modules_data[persona_key]['Codigo'] if persona_key in modules_data else None
+            codigo_empresa = modules_data[empresa_key]['Codigo'] if empresa_key in modules_data else None
 
-                        script = generate_script_from_json(target_data if isinstance(target_data, dict) else {},
-                                                           module_name, target_name, 
-                                                           processed_targets[target_name]['persona'], 
-                                                           processed_targets[target_name]['empresa'])
+            for target_name, target_data in module_data['Data'].items():
+                if target_name != 'flag':
+                    script = generate_script_from_json(target_data if isinstance(target_data, dict) else {},
+                                                       base_module_name, target_name, 
+                                                       codigo_persona, 
+                                                       codigo_empresa)
 
-                        prefix = 'empresa_' if processed_targets[target_name]['empresa'] is not None else ''
-                        file_name = f'{directory}/pe_modulo_{prefix}{camel_to_snake(target_name)}.py'
-                        with open(file_name, 'w') as f:
-                            f.write(script)
-                        print(f'Script generado para el módulo: {module_name}, target: {target_name} en {file_name}')
+                    file_name = f'{directory}/pe_modulo_{camel_to_snake(target_name)}.py'
+                    with open(file_name, 'w') as f:
+                        f.write(script)
+                    print(f'Script generado para el módulo: {base_module_name}, target: {target_name} en {file_name}')
 
-# Leer los JSONs de persona y empresa
-with open('persona.json') as f:
-    persona_data = json.load(f)
-
-with open('empresa.json') as f:
-    empresa_data = json.load(f)
+# Leer el JSON de módulos completos
+with open('Modulos_completos.json') as f:
+    modules_data = json.load(f)
 
 # Generar scripts
-generate_scripts_for_modules(persona_data, empresa_data)
+generate_scripts_for_modules(modules_data)
