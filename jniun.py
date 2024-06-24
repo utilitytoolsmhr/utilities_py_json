@@ -39,6 +39,7 @@ def generate_script(module, codigo_persona, codigo_empresa, target_name, fields,
     dynamic_functions = generate_dynamic_functions(fields)
     field_mappings = build_field_mappings(fields)
 
+    # Template del script con las variables correctamente referenciadas
     script_template = f"""
 # ==================================
 # Modulo: {module}
@@ -83,7 +84,8 @@ def main(payload):
 
         # Data del modulo
         nodo = modulo[0].get('Data').get(target)
-    except:
+    except Exception as e:
+        print(f"Error al procesar los datos de entrada: {e}")
         traceback.print_exc()
 
     #################################################
@@ -125,7 +127,8 @@ def main(payload):
             }}
         }}
     except Exception as e:
-        print(str(e))
+        print(f"Error al generar la salida final: {e}")
+        traceback.print_exc()
         final_out = {{
             "Codigo": codigo, 
             "Nombre": nombre, 
