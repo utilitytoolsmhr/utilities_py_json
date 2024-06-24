@@ -1,47 +1,13 @@
 import json
 import os
+import sys
 import traceback
 from datetime import datetime
 
-def generate_dynamic_functions(fields, parent_key=""):
-    functions = ""
-    if isinstance(fields, dict):
-        for key, value in fields.items():
-            current_key = f"{parent_key}_{key}" if parent_key else key
-            if isinstance(value, dict):
-                functions += generate_dynamic_functions(value, current_key)
-            elif isinstance(value, list) and isinstance(value[0], dict):
-                function_name = f"process_{current_key}"
-                functions += f"\n    def {function_name}(data):\n"
-                functions += f"        return [\n"
-                for sub_key in value[0].keys():
-                    functions += f"            {{'{sub_key}': text_fix(ob.get('{sub_key}'))}} for ob in data\n"
-                functions += f"        ]\n"
-            else:
-                function_name = f"process_{current_key}"
-                functions += f"\n    def {function_name}(data):\n"
-                functions += f"        return text_fix(data.get('{key}'))\n"
-    return functions
-
-def build_field_mappings(fields):
-    mappings = {}
-    if isinstance(fields, dict):
-        for key, value in fields.items():
-            if isinstance(value, dict):
-                mappings[key] = build_field_mappings(value)
-            elif isinstance(value, list) and isinstance(value[0], dict):
-                mappings[key] = [build_field_mappings(value[0])]
-            else:
-                mappings[key] = ""
-    return mappings
-
-def generate_script(module, codigo_persona, codigo_empresa, target_name, fields, tipo_documento):
-    dynamic_functions = generate_dynamic_functions(fields)
-    field_mappings = build_field_mappings(fields)
-
-    script_template = f"""
+def generate_script_from_json(json_data, module_name, target_name, codigo_persona, codigo_empresa):
+    script = f"""
 # ==================================
-# Modulo: {module}
+# Modulo: {module_name.upper()}
 # Autor: Generado automáticamente
 # Fecha: {datetime.now().strftime('%d-%m-%Y')}
 # ==================================
@@ -62,6 +28,8 @@ def main(payload):
     except:
         primaryConsumer = payload.get('applicants').get('primaryConsumer')
 
+    tipoPersona = primaryConsumer.get('personalInformation').get('tipoPersona')
+
     try:
         # Captura respuesta API-DSS
         payload = primaryConsumer.get('equifax-pe-middleware')
@@ -70,9 +38,9 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre  = '{module}'
+        nombre  = '{module_name}'
         target  = '{target_name}'
-        codigo  = {codigo_persona if tipo_documento == 1 else codigo_empresa}
+        codigo  = {codigo_persona} if tipoPersona == 1 else {codigo_empresa}
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]  
 
@@ -90,95 +58,92 @@ def main(payload):
     ################### Functions ###################
     #################################################
 
-    {dynamic_functions}
+"""
+    if isinstance(json_data, dict):
+        for key, value in json_data.items():
+            if isinstance(value, dict):
+                script += f"""
+    def process_{target_name.lower()}_{key}(data):
+        return {{
+"""
+                for k, v in value.items():
+                    script += f"            '{k}': data.get('{k}', ''),\n"
+                script += f"        }}\n"
 
+    script += """
     #################################################
     ################# Data Processing ###############
     #################################################
 
-    def process_data(data, field_mappings):
-        result = {{}}
-        for key, value in field_mappings.items():
-            if isinstance(value, dict):
-                result[key] = process_data(data.get(key, {{}}), value)
-            elif isinstance(value, list):
-                result[key] = [process_data(item, value[0]) for item in data.get(key, [])]
-            else:
-                function_name = f"process_{target_name.lower()}_{key}"
-                if function_name in globals():
-                    result[key] = globals()[function_name](data)
-                else:
-                    result[key] = text_fix(data.get(key))
-        return result
+    result = {}
 
+"""
+    if isinstance(json_data, dict):
+        for key in json_data.keys():
+            if isinstance(json_data[key], dict):
+                script += f"    result['{key}'] = process_{target_name.lower()}_{key}(nodo.get('{key}', {{}}))\n"
+
+    script += f"""
     #################################################
     ################## Set Output ###################
     #################################################
 
     try:
         final_out = {{
-            "Codigo": modulo[0].get('Codigo'),
-            "Nombre": modulo[0].get('Nombre'),
-            "Data": {{
-                "flag": modulo[0].get('Data').get('flag'),
-                "{target_name}": process_data(nodo, {json.dumps(field_mappings, indent=4)})
+                "Codigo": modulo[0].get('Codigo'),
+                "Nombre": modulo[0].get('Nombre'),
+                "Data": {{
+                    "flag": modulo[0].get('Data').get('flag'),
+                    "{target_name}": result
+                }}
             }}
-        }}
     except:
         final_out = {{
-            "Codigo": codigo, 
-            "Nombre": nombre, 
-            "Data": {{
-                "flag": False
+                "Codigo": codigo, 
+                "Nombre": nombre, 
+                "Data": {{
+                    "flag": False
+                }}
             }}
-        }}
     return final_out
-    """
 
-    filename = f"pe_modulo_{target_name.lower()}.py"
-    os.makedirs("scripts_final", exist_ok=True)
-    filepath = os.path.join("scripts_final", filename)
-    
-    # Check if the file already exists and add a suffix if it does
-    counter = 2
-    while os.path.exists(filepath):
-        base, ext = os.path.splitext(filepath)
-        filepath = f"{base}_{counter}{ext}"
-        counter += 1
+"""
 
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(script_template)
-    print(f"Script {os.path.basename(filepath)} generado exitosamente.")
+    return script
 
-def get_modules_info(json_data, module_name):
-    try:
-        module = json_data[module_name]
-        codigo_persona = module['Codigo']
-        codigo_empresa = module['Codigo']
-        target_name = next((key for key in module.get('Data').keys() if key != 'flag'), None)
-        fields = module.get('Data').get(target_name, {})
-        return codigo_persona, codigo_empresa, target_name, fields
-    except KeyError as e:
-        print(f"Error: No se encontró el módulo {module_name} en la estructura.")
-        return None, None, None, None
+def generate_scripts_for_modules(modules_data):
+    directory = 'scripts_final'
+    os.makedirs(directory, exist_ok=True)
 
-def generate_all_scripts():
-    with open("modulos_completos.json", 'r', encoding='utf-8') as f:
-        complete_data = json.load(f)
+    # Helper function to convert camelCase to snake_case
+    def camel_to_snake(name):
+        import re
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-    for module_name in complete_data.keys():
-        if '_p' in module_name:
-            tipo_documento = 1
-        elif '_e' in module_name:
-            tipo_documento = 2
-        else:
-            continue
+    for module_name, module_data in modules_data.items():
+        if '_p' in module_name or '_e' in module_name:
+            base_module_name = module_name[:-2]
+            persona_key = f"{base_module_name}_p"
+            empresa_key = f"{base_module_name}_e"
+            codigo_persona = modules_data[persona_key]['Codigo'] if persona_key in modules_data else None
+            codigo_empresa = modules_data[empresa_key]['Codigo'] if empresa_key in modules_data else None
 
-        base_module_name = module_name[:-2]
-        codigo_persona, codigo_empresa, target_name, fields = get_modules_info(complete_data, module_name)
-        if target_name:
-            print(f"Generando script para el módulo: {base_module_name}")
-            generate_script(base_module_name, codigo_persona, codigo_empresa, target_name, fields, tipo_documento)
+            for target_name, target_data in module_data['Data'].items():
+                if target_name != 'flag':
+                    script = generate_script_from_json(target_data if isinstance(target_data, dict) else {},
+                                                       base_module_name, target_name, 
+                                                       codigo_persona, 
+                                                       codigo_empresa)
 
-if __name__ == "__main__":
-    generate_all_scripts()
+                    file_name = f'{directory}/pe_modulo_{camel_to_snake(target_name)}.py'
+                    with open(file_name, 'w') as f:
+                        f.write(script)
+                    print(f'Script generado para el módulo: {base_module_name}, target: {target_name} en {file_name}')
+
+# Leer el JSON de módulos completos
+with open('Modulos_completos.json') as f:
+    modules_data = json.load(f)
+
+# Generar scripts
+generate_scripts_for_modules(modules_data)
