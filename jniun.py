@@ -85,7 +85,7 @@ def main(payload):
         # Data del modulo
         nodo = modulo[0].get('Data').get(target)
     except Exception as e:
-        print(f"Error al procesar los datos de entrada: {e}")
+        print(f"Error al procesar los datos de entrada: {{e}}")
         traceback.print_exc()
 
     #################################################
@@ -127,7 +127,7 @@ def main(payload):
             }}
         }}
     except Exception as e:
-        print(f"Error al generar la salida final: {e}")
+        print(f"Error al generar la salida final: {{e}}")
         traceback.print_exc()
         final_out = {{
             "Codigo": codigo, 
