@@ -47,7 +47,7 @@ def main(payload):
         # Filtra por target si existen múltiples módulos con el mismo nombre
         if len(modulo) > 1: 
             modulo_filtrado = [modulo_filtrado for modulo_filtrado in modulo if modulo_filtrado.get('Data').get(target)]
-            modulo = modulo_filtrado si len(modulo_filtrado) == 1 else modulo
+            modulo = modulo_filtrado if len(modulo_filtrado) == 1 else modulo
 
         # Data del modulo
         nodo = modulo[0].get('Data').get(target)
@@ -126,8 +126,11 @@ def generate_scripts_for_modules(modules_data):
             base_module_name = module_name[:-2]
             persona_key = f"{base_module_name}_p"
             empresa_key = f"{base_module_name}_e"
-            codigo_persona = modules_data[persona_key]['Codigo'] if persona_key in modules_data else None
-            codigo_empresa = modules_data[empresa_key]['Codigo'] if empresa_key in modules_data else None
+            codigo_persona = modules_data.get(persona_key, {}).get('Codigo', None)
+            codigo_empresa = modules_data.get(empresa_key, {}).get('Codigo', None)
+
+            if codigo_persona is None and codigo_empresa is None:
+                continue
 
             for target_name, target_data in module_data['Data'].items():
                 if target_name != 'flag':
