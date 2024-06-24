@@ -124,7 +124,8 @@ def main(payload):
                 "{target_name}": process_data(nodo, {json.dumps(field_mappings, indent=4)})
             }}
         }}
-    except:
+    except Exception as e:
+        print(str(e))
         final_out = {{
             "Codigo": codigo, 
             "Nombre": nombre, 
@@ -182,4 +183,3 @@ def generate_all_scripts():
 
 if __name__ == "__main__":
     generate_all_scripts()
-# test
