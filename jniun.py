@@ -47,7 +47,7 @@ def main(payload):
         # Filtra por target si existen múltiples módulos con el mismo nombre
         if len(modulo) > 1: 
             modulo_filtrado = [modulo_filtrado for modulo_filtrado in modulo if modulo_filtrado.get('Data').get(target)]
-            modulo = modulo_filtrado if len(modulo_filtrado) == 1 else modulo
+            modulo = modulo_filtrado si len(modulo_filtrado) == 1 else modulo
 
         # Data del modulo
         nodo = modulo[0].get('Data').get(target)
@@ -141,9 +141,23 @@ def generate_scripts_for_modules(modules_data):
                         f.write(script)
                     print(f'Script generado para el módulo: {base_module_name}, target: {target_name} en {file_name}')
 
-# Leer el JSON de módulos completos
-with open('Modulos_completos.json') as f:
-    modules_data = json.load(f)
+def load_json_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except UnicodeDecodeError:
+        with open(file_path, 'r', encoding='cp1252') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error al cargar el archivo JSON: {e}")
+        return None
 
-# Generar scripts
-generate_scripts_for_modules(modules_data)
+# Leer el JSON de módulos completos
+modules_data = load_json_file('Modulos_completos.json')
+
+# Verificar si se cargaron los datos correctamente antes de proceder
+if modules_data:
+    # Generar scripts
+    generate_scripts_for_modules(modules_data)
+else:
+    print("No se pudieron cargar los datos del archivo JSON.")
