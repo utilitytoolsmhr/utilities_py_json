@@ -155,8 +155,8 @@ def get_modules_info(json_data, module_name):
         module = json_data[module_name]
         codigo_persona = module['Codigo']
         codigo_empresa = module['Codigo']
-        target_name = next((key for key in module.get('Data').keys() if key != 'flag'), None)
-        fields = module.get('Data').get(target_name, {})
+        target_name = next((key for key in module.get('Data', {}).keys() if key != 'flag'), None)
+        fields = module.get('Data', {}).get(target_name, {})
         return codigo_persona, codigo_empresa, target_name, fields
     except KeyError as e:
         print(f"Error: No se encontró el módulo {module_name} en la estructura.")
