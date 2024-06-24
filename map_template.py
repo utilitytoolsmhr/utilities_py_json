@@ -152,23 +152,21 @@ def main(payload):
 
 def get_modules_info(json_data, module_name):
     try:
-        modulos = json_data['dataSourceResponse']['GetReporteOnlineResponse']['ReporteCrediticio']['Modulos']['Modulo']
-        for modulo in modulos:
-            if modulo['Nombre'] == module_name:
-                codigo_persona = modulo.get('Codigo')
-                codigo_empresa = modulo.get('Codigo')
-                target_name = next((key for key in modulo.get('Data').keys() if key != 'flag'), None)
-                fields = modulo.get('Data').get(target_name, {})
-                return codigo_persona, codigo_empresa, target_name, fields
+        module = json_data[module_name]
+        codigo_persona = module['Codigo']
+        codigo_empresa = module['Codigo']
+        target_name = next((key for key in module.get('Data').keys() if key != 'flag'), None)
+        fields = module.get('Data').get(target_name, {})
+        return codigo_persona, codigo_empresa, target_name, fields
     except KeyError as e:
         print(f"Error: No se encontró el módulo {module_name} en la estructura.")
         return None, None, None, None
 
 def generate_all_scripts():
-    with open("Modulos_completos.json", 'r') as f:
+    with open("modulos_completos.json", 'r') as f:
         complete_data = json.load(f)
 
-    for module_name, module_info in complete_data.items():
+    for module_name in complete_data.keys():
         if '_p' in module_name:
             tipo_documento = 1
         elif '_e' in module_name:
