@@ -124,8 +124,7 @@ def main(payload):
                 "{target_name}": process_data(nodo, {json.dumps(field_mappings, indent=4)})
             }}
         }}
-    except Exception as e:
-        print(str(e))
+    except:
         final_out = {{
             "Codigo": codigo, 
             "Nombre": nombre, 
@@ -147,7 +146,7 @@ def main(payload):
         filepath = f"{base}_{counter}{ext}"
         counter += 1
 
-    with open(filepath, 'w') as f:
+    with open(filepath, 'w', encoding='utf-8') as f:
         f.write(script_template)
     print(f"Script {os.path.basename(filepath)} generado exitosamente.")
 
@@ -156,15 +155,15 @@ def get_modules_info(json_data, module_name):
         module = json_data[module_name]
         codigo_persona = module['Codigo']
         codigo_empresa = module['Codigo']
-        target_name = next((key for key in module.get('Data', {}).keys() if key != 'flag'), None)
-        fields = module.get('Data', {}).get(target_name, {})
+        target_name = next((key for key in module.get('Data').keys() if key != 'flag'), None)
+        fields = module.get('Data').get(target_name, {})
         return codigo_persona, codigo_empresa, target_name, fields
     except KeyError as e:
         print(f"Error: No se encontró el módulo {module_name} en la estructura.")
         return None, None, None, None
 
 def generate_all_scripts():
-    with open("modulos_completos.json", 'r') as f:
+    with open("modulos_completos.json", 'r', encoding='utf-8') as f:
         complete_data = json.load(f)
 
     for module_name in complete_data.keys():
