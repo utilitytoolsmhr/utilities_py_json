@@ -182,3 +182,4 @@ def generate_all_scripts():
 
 if __name__ == "__main__":
     generate_all_scripts()
+# test
