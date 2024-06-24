@@ -1,173 +1,135 @@
-import json
 import os
-import openpyxl
-from openpyxl.styles import PatternFill
-from openpyxl.utils import get_column_letter
+import json
+import pandas as pd
+from collections import defaultdict
 
-def get_json_files(directory):
-    return [f for f in os.listdir(directory) if f.endswith('.json')]
+def load_json_files(directory):
+    json_files = [f for f in os.listdir(directory) if f.endswith('.json')]
+    data_list = []
+    for file in json_files:
+        with open(os.path.join(directory, file), 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            data_list.append(data)
+    return data_list
 
-def get_defaults_structure(json_data):
-    def process_dict(data):
-        if isinstance(data, dict):
-            return {k: process_dict(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [process_dict(data[0])] if data else []
-        elif isinstance(data, str):
-            return ""
-        elif isinstance(data, int):
-            return 0
-        elif isinstance(data, float):
-            return 0.0
-        else:
-            return None
-    return process_dict(json_data)
-
-def write_to_excel(headers, sheet):
-    sheet["A1"] = "Campo"
-    col = 1
-    for header in headers:
-        sheet[f"{get_column_letter(col)}2"] = header
-        col += 1
-
-def write_defaults_to_json(defaults, output_path):
-    with open(output_path, 'w') as f:
-        json.dump(defaults, f, indent=4)
-
-def format_value(value):
-    if isinstance(value, str):
-        return '""'
-    elif isinstance(value, int):
-        return '0'
-    elif isinstance(value, float):
-        return '0.0'
-    return 'None'
-
-def format_json(json_obj, path='', lines=None):
-    if lines is None:
-        lines = []
-    if isinstance(json_obj, dict):
-        for k, v in json_obj.items():
-            new_path = f"{path}['{k}']" if path else f"['{k}']"
-            format_json(v, new_path, lines)
-    elif isinstance(json_obj, list):
-        if len(json_obj) > 0:
-            new_path = f"{path}[0]"
-            format_json(json_obj[0], new_path, lines)
-    else:
-        lines.append(f"    json_return{path} = None")
-    return lines
-
-def create_headers(sheet, max_col):
-    sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max_col + 6)
-    sheet.cell(row=2, column=max_col + 1, value="Tipo").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
-    sheet.cell(row=2, column=max_col + 2, value="Valores").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
-    sheet.merge_cells(start_row=2, start_column=max_col + 3, end_row=2, end_column=max_col + 7)
-    sheet.cell(row=2, column=max_col + 3, value="Mapeo").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
-    sheet.cell(row=3, column=max_col + 3, value="DOMINIO DF")
-    sheet.cell(row=3, column=max_col + 4, value="SUBDOMINIO DF")
-    sheet.cell(row=3, column=max_col + 5, value="PROPOSITO")
-    sheet.cell(row=3, column=max_col + 6, value="CAMPO")
-    sheet.cell(row=3, column=max_col + 7, value="ATRIBUTO")
-    sheet.cell(row=2, column=max_col + 8, value="Agregado").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
-    sheet.cell(row=2, column=max_col + 9, value="Error 403").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
-    sheet.cell(row=2, column=max_col + 10, value="Observaciones").fill = PatternFill(start_color="006400", end_color="006400", fill_type="solid")
-
-def adjust_column_width(sheet):
-    for column_cells in sheet.columns:
-        length = max(len(str(cell.value)) for cell in column_cells)
-        sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = length + 2
-
-def get_max_column_width(json_data, col=1):
-    max_col = col
-    if isinstance(json_data, dict):
-        for key, value in json_data.items():
-            if isinstance(value, (dict, list)):
-                new_col = get_max_column_width(value, col + 1)
-                max_col = max(max_col, new_col)
-    elif isinstance(json_data, list) and len(json_data) > 0 and isinstance(json_data[0], (dict, list)):
-        new_col = get_max_column_width(json_data[0], col + 1)
-        max_col = max(max_col, new_col)
-    return max_col
-
-def write_data_to_excel(json_data, sheet):
-    current_row = 4
-    max_col = get_max_column_width(json_data)
-
-    def process_dict(data, col, row):
-        for key, value in data.items():
-            sheet[f"{get_column_letter(col)}{row}"] = key
-            if isinstance(value, dict):
-                row = process_dict(value, col + 1, row + 1)
-            elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-                row = process_dict(value[0], col + 1, row + 1)
+def clean_data(data):
+    if isinstance(data, dict):
+        clean_dict = {}
+        for k, v in data.items():
+            if isinstance(v, dict) and ("xsi:nil" in v and v["xsi:nil"]):
+                clean_dict[k] = "No se encontraron datos para esta variable, debe analizarse a futuro"
             else:
-                if isinstance(value, int):
-                    data_type = "Integer"
-                elif isinstance(value, float):
-                    data_type = "Float"
-                elif isinstance(value, str):
-                    data_type = "String"
-                elif isinstance(value, list):
-                    data_type = "List"
-                    value = ', '.join(map(str, value))
-                else:
-                    data_type = "Unknown"
-                    value = str(value)
-                sheet[f"{get_column_letter(max_col + 1)}{row}"] = data_type
-                sheet[f"{get_column_letter(max_col + 2)}{row}"] = value
-                row += 1
-        return row
+                clean_dict[k] = clean_data(v)
+        return clean_dict
+    elif isinstance(data, list):
+        return [clean_data(item) for item in data[:2]]  # Limit lists to 2 items
+    else:
+        return data
+
+def get_most_complete_module(modules):
+    max_keys = 0
+    most_complete_module = {}
+    for module in modules:
+        cleaned_module = clean_data(module)
+        num_keys = len(json.dumps(cleaned_module))
+        if num_keys > max_keys:
+            max_keys = num_keys
+            most_complete_module = cleaned_module
+    # Limitar a los primeros 2 elementos si es una lista
+    for key, value in most_complete_module.items():
+        if isinstance(value, list):
+            most_complete_module[key] = value[:2]
+    return most_complete_module
+
+def process_json_data(data_list, suffix):
+    module_dict = defaultdict(list)
+    for data in data_list:
+        if 'dataSourceResponse' in data:
+            response = data['dataSourceResponse']
+            if 'GetReporteOnlineResponse' in response:
+                report = response['GetReporteOnlineResponse']
+                if 'ReporteCrediticio' in report:
+                    credit_report = report['ReporteCrediticio']
+                    if 'Modulos' in credit_report:
+                        modules = credit_report['Modulos']
+                        for module in modules['Modulo']:
+                            module_name = f"{module['Nombre']}_{suffix}"
+                            module_dict[module_name].append(module)
+                            print(f"Processed module: {module_name}")
+
+    most_complete_modules = {}
+    for module_name, modules in module_dict.items():
+        most_complete_module_data = get_most_complete_module([module['Data'] for module in modules])
+        for module in modules:
+            if module['Data'] == most_complete_module_data:
+                most_complete_modules[module_name] = module
+                print(f"Selected most complete module: {module_name}")
+                break
+        if module_name not in most_complete_modules:
+            least_complete_module_data = clean_data(modules[0]['Data'])
+            most_complete_modules[module_name] = modules[0]
+            most_complete_modules[module_name]['Data'] = least_complete_module_data
+            print(f"Added least complete module: {module_name}")
+
+    return most_complete_modules
+
+def extract_data_to_dataframe(modules):
+    data = []
+    for module_name, module in modules.items():
+        flat_module = flatten_json(module['Data'])
+        for key, value in flat_module.items():
+            data.append({
+                'Module': module_name,
+                'Key': key,
+                'Example Value': value,
+            })
+    df = pd.DataFrame(data)
+    return df
+
+def flatten_json(y):
+    out = {}
+
+    def flatten(x, name=''):
+        if type(x) is dict:
+            for a in x:
+                flatten(x[a], name + a + '.')
+        elif type(x) is list:
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + '.')
+                i += 1
+        else:
+            out[name[:-1]] = x
+
+    flatten(y)
+    return out
+
+def main():
+    persona_dir = 'Persona'
+    empresa_dir = 'Empresa'
     
-    process_dict(json_data, 1, current_row)
-    create_headers(sheet, max_col)
-    adjust_column_width(sheet)
+    persona_data_list = load_json_files(persona_dir)
+    empresa_data_list = load_json_files(empresa_dir)
 
-def process_json_file(json_path):
-    with open(json_path, 'r') as file:
-        data = json.load(file)
-    base_name = 'json_return_' + os.path.splitext(os.path.basename(json_path))[0]
-    cr_json_name = f"cr_{os.path.basename(json_path)}"
-    cr_json_path = os.path.join(os.path.dirname(json_path), cr_json_name)
-    if not os.path.exists(cr_json_path):
-        defaults = get_defaults_structure(data)
-        write_defaults_to_json(defaults, cr_json_path)
-    with open(cr_json_path, 'r') as file:
-        cr_data = json.load(file)
-    lines = []
-    formatted_json = json.dumps(data)
-    lines.append(f"{base_name} = {formatted_json}")
-    lines.append(f"json_return = json.loads({base_name})")
-    lines.append("")
-    lines.append(f"cr_{base_name} = {json.dumps(cr_data)}")
-    lines.append("")
-    lines.append("def tfn(fna, fti):")
-    lines.append("    pass")
-    lines.append("")
-    lines.append("def main(p):")
-    lines.append("")
-    replacement_lines = format_json(data)
-    lines.extend(replacement_lines)
-    lines.append("    return json_return")
-    lines.append("")
-    new_file_path = f"{os.path.splitext(os.path.basename(json_path))[0]}.py"
-    with open(new_file_path, 'w') as new_file:
-        new_file.write('\n'.join(lines))
+    persona_modules = process_json_data(persona_data_list, "p")
+    empresa_modules = process_json_data(empresa_data_list, "e")
 
-def main(P):
-    workbook = openpyxl.Workbook()
-    for filename in os.listdir(P):
-        if filename.endswith('.json'):
-            json_path = os.path.join(P, filename)
-            with open(json_path, 'r') as f:
-                json_data = json.load(f)
-                sheet_name = os.path.splitext(filename)[0][:31]
-                sheet = workbook.create_sheet(title=sheet_name)
-                write_data_to_excel(json_data, sheet)
-                process_json_file(json_path)
-    if 'Sheet' in workbook.sheetnames:
-        workbook.remove(workbook['Sheet'])
-    workbook.save(os.path.join(P, "headers.xlsx"))
+    # Crear DataFrames y archivos Excel
+    persona_df = extract_data_to_dataframe(persona_modules)
+    empresa_df = extract_data_to_dataframe(empresa_modules)
 
-if __name__ == "__main__":
-    main(".")
+    persona_df.to_excel('Persona_data.xlsx', index=False)
+    empresa_df.to_excel('Empresa_data.xlsx', index=False)
+
+    # Combinar módulos de persona y empresa
+    combined_modules = {**persona_modules, **empresa_modules}
+
+    # Guardar todos los módulos en un único archivo JSON
+    with open('modulos_completos.json', 'w', encoding='utf-8') as f:
+        json.dump(combined_modules, f, ensure_ascii=False, indent=4)
+        print(f'Saved combined modules to modulos_completos.json')
+
+    print('DataFrames and Excel files created successfully.')
+
+if __name__ == '__main__':
+    main()
