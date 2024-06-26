@@ -8,8 +8,8 @@ def generate_script_from_json(json_data, module_name, target_name, codigo_person
     script = f"""
 # ==================================
 # Modulo: {module_name.upper()}
-# Autor: José Reyes         
-# Correo: jose.reyes3@equifax.com
+# Autor: Mario Henriquez Reyes         
+# Correo: mario.henriquez@equifax.com
 # Fecha: {datetime.now().strftime('%d-%m-%Y')}
 # ==================================
 
@@ -122,8 +122,10 @@ def main(payload):
                 "{target_name}": {{
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
-                    "Data": modulo[0].get('Data').get('flag'),
-                    "{target_name}": result
+                    "Data": {{
+                        "flag": modulo[0].get('Data').get('flag'),
+                        "{target_name}": result
+                    }}
                 }}
             }}
         except Exception as e:
@@ -133,7 +135,10 @@ def main(payload):
                 "{target_name}": {{
                     "Codigo": codigo,
                     "Nombre": nombre,
-                    "Data": False
+                    "Data": {{
+                        "flag": False,
+                        "{target_name}": {{}}
+                    }}
                 }}
             }}
     return final_out
