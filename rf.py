@@ -1,3 +1,4 @@
+
 import os
 import sys
 import traceback
@@ -29,8 +30,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'DEUDAS IMPAGAS'
-        target = 'DeudasImpagas'
+        nombre = 'SISTEMA FINANCIERO'
+        target = 'SistemaFinanciero'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -50,257 +51,136 @@ def main(payload):
     ################### Variables ###################
     #################################################
 
+    def semaforo(nodo):
+        return {
+            'periodo': text_fix(nodo.get('periodo')),
+            'NoTieneImpagos': bool(nodo.get('NoTieneImpagos')),
+            'TieneDeudasAtrasadas': bool(nodo.get('TieneDeudasAtrasadas')),
+            'TieneDeudasImpagasInfocorp': bool(nodo.get('TieneDeudasImpagasInfocorp')),
+            'InformacionNoDisponible': bool(nodo.get('InformacionNoDisponible')),
+            'DiasAtraso': int_fix(nodo.get('DiasAtraso'))
+        }
+
+    def resumen_comportamiento_pago(nodo):
+        return {
+            'Semaforo': [semaforo(item) for item in nodo.get('Semaforo', [])]
+        }
+
+    def deuda_historica(nodo):
+        return {
+            'periodo': text_fix(nodo.get('periodo')),
+            'Calificacion': text_fix(nodo.get('Calificacion')),
+            'Porcentaje': text_fix(nodo.get('Porcentaje')),
+            'NroEntidades': int_fix(nodo.get('NroEntidades')),
+            'DeudaVigente': float_fix(nodo.get('DeudaVigente')),
+            'DeudaAtrasada': float_fix(nodo.get('DeudaAtrasada')),
+            'DeudaVencida': float_fix(nodo.get('DeudaVencida')),
+            'DeudaRefinanciada': float_fix(nodo.get('DeudaRefinanciada')),
+            'DeudaReestructurada': float_fix(nodo.get('DeudaReestructurada')),
+            'DeudaJudicial': float_fix(nodo.get('DeudaJudicial')),
+            'DeudaCastigada': float_fix(nodo.get('DeudaCastigada')),
+            'DeudaTotal': float_fix(nodo.get('DeudaTotal')),
+            'DiasAtraso': int_fix(nodo.get('DiasAtraso'))
+        }
+
+    def deudas_historicas(nodo):
+        return {
+            'Deuda': [deuda_historica(item) for item in nodo.get('Deuda', [])]
+        }
+
     def producto_deuda(nodo):
         return {
-            'CodigoProducto': text_fix(nodo.get('CodigoProducto')),
-            'DeudaSoles': float_fix(nodo.get('DeudaSoles')),
-            'DeudaDolares': float_fix(nodo.get('DeudaDolares'))
-        }
-
-    def semaforo_periodo(nodo):
-        return {
-            'periodo': text_fix(nodo.get('periodo')),
-            'TieneDeuda': bool(nodo.get('TieneDeuda')),
-            'DetalleProductos': {
-                'ProductoDeuda': [producto_deuda(item) for item in nodo.get('DetalleProductos', {}).get('ProductoDeuda', [])]
-            }
-        }
-
-    def resumen_deudas_impagas(nodo):
-        return {
-            'SemaforoPeriodo': [semaforo_periodo(item) for item in nodo.get('SemaforoPeriodo', [])]
-        }
-
-    def deuda_detalle(nodo):
-        return {
-            'FechaVencimiento': text_fix(nodo.get('FechaVencimiento')),
-            'FechaReportada': text_fix(nodo.get('FechaReportada')),
-            'Divisa': text_fix(nodo.get('Divisa')),
+            'Tipo': text_fix(nodo.get('Tipo')),
+            'Descripcion': text_fix(nodo.get('Descripcion')),
             'Monto': float_fix(nodo.get('Monto')),
-            'Acreedor': text_fix(nodo.get('Acreedor')),
-            'DocumentoBancario': text_fix(nodo.get('DocumentoBancario')),
-            'CondicionDeuda': text_fix(nodo.get('CondicionDeuda')),
-            'TipoDeudor': text_fix(nodo.get('TipoDeudor')),
-            'GiroNegocio': text_fix(nodo.get('GiroNegocio'))
+            'DiasAtraso': int_fix(nodo.get('DiasAtraso'))
         }
 
-    def sicom_detalle(nodo):
+    def deuda_ultimo_periodo(nodo):
         return {
-            'FechaVencimientoReciente': text_fix(nodo.get('FechaVencimientoReciente')),
-            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
-            'MontoSoles': float_fix(nodo.get('MontoSoles')),
-            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
-            'MontoDolares': float_fix(nodo.get('MontoDolares')),
-            'Detalle': {
-                'Deuda': [deuda_detalle(item) for item in nodo.get('Deuda', [])]
-            }
-        }
-
-    def negativo_sunat_detalle(nodo):
-        return {
-            'FechaCobranzaReciente': text_fix(nodo.get('FechaCobranzaReciente')),
-            'CantidadTotal': int_fix(nodo.get('CantidadTotal')),
+            'Entidad': text_fix(nodo.get('Entidad')),
+            'SistemaFinanciero': text_fix(nodo.get('SistemaFinanciero')),
+            'Calificacion': text_fix(nodo.get('Calificacion')),
             'MontoTotal': float_fix(nodo.get('MontoTotal')),
-            'Detalle': {
-                'Deuda': [
-                    {
-                        'Periodo': text_fix(nodo.get('Periodo')),
-                        'Monto': float_fix(nodo.get('Monto')),
-                        'Tipo': text_fix(nodo.get('Tipo')),
-                        'Dependencia': text_fix(nodo.get('Dependencia')),
-                        'FechaCobranza': text_fix(nodo.get('FechaCobranza')),
-                        'FechaProceso': text_fix(nodo.get('FechaProceso'))
-                    }
-                ]
+            'Productos': {
+                'Producto': [producto_deuda(item) for item in nodo.get('Productos', {}).get('Producto', [])]
             }
         }
 
-    def omision_detalle(nodo):
-        return {
-            'FechaOmision': text_fix(nodo.get('FechaOmision')),
-            'Concepto': text_fix(nodo.get('Concepto')),
-            'FechaProceso': text_fix(nodo.get('FechaProceso'))
-        }
-
-    def protestos_detalle(nodo):
-        return {
-            'CorrelativoBNP': text_fix(nodo.get('CorrelativoBNP')),
-            'NumeroBoletin': text_fix(nodo.get('NumeroBoletin')),
-            'TipoDocumento': text_fix(nodo.get('TipoDocumento')),
-            'Divisa': text_fix(nodo.get('Divisa')),
-            'Monto': float_fix(nodo.get('Monto')),
-            'EmisorDocumento': text_fix(nodo.get('EmisorDocumento')),
-            'AceptanteDocumento': text_fix(nodo.get('AceptanteDocumento')),
-            'FechaVencimiento': text_fix(nodo.get('FechaVencimiento')),
-            'FechaAclaracion': text_fix(nodo.get('FechaAclaracion')),
-            'Notaria': text_fix(nodo.get('Notaria'))
-        }
-
-    def protestos_aclarados_detalle(nodo):
-        return {
-            'FechaVencimientoReciente': text_fix(nodo.get('FechaVencimientoReciente')),
-            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
-            'MontoSoles': float_fix(nodo.get('MontoSoles')),
-            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
-            'MontoDolares': float_fix(nodo.get('MontoDolares')),
-            'Detalle': {
-                'Deuda': [protestos_detalle(item) for item in nodo.get('Deuda', [])]
-            }
-        }
-
-    def protestos_no_aclarados_detalle(nodo):
-        return {
-            'FechaVencimientoReciente': text_fix(nodo.get('FechaVencimientoReciente')),
-            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
-            'MontoSoles': float_fix(nodo.get('MontoSoles')),
-            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
-            'MontoDolares': float_fix(nodo.get('MontoDolares')),
-            'Detalle': {
-                'Deuda': [protestos_detalle(item) for item in nodo.get('Deuda', [])]
-            }
-        }
-
-    def cuentas_cerradas_detalle(nodo):
-        return {
-            'FechaSancionReciente': text_fix(nodo.get('FechaSancionReciente')),
-            'Detalle': {
-                'InformacionNegativa': [
-                    {
-                        'FechaSancion': text_fix(nodo.get('FechaSancion')),
-                        'FechaFinSancion': text_fix(nodo.get('FechaFinSancion')),
-                        'FechaPublicacion': text_fix(nodo.get('FechaPublicacion')),
-                        'NumeroPublicacion': text_fix(nodo.get('NumeroPublicacion')),
-                        'Divisa': text_fix(nodo.get('Divisa')),
-                        'TipoCuenta': text_fix(nodo.get('TipoCuenta')),
-                        'Entidad': text_fix(nodo.get('Entidad'))
-                    }
-                ]
-            }
-        }
-
-    def tarjetas_anuladas_detalle(nodo):
-        return {
-            'FechaSancionReciente': text_fix(nodo.get('FechaSancionReciente')),
-            'Detalle': {
-                'InformacionNegativa': [
-                    {
-                        'FechaSancion': text_fix(nodo.get('FechaSancion')),
-                        'FechaFinSancion': text_fix(nodo.get('FechaFinSancion')),
-                        'FechaPublicacion': text_fix(nodo.get('FechaPublicacion')),
-                        'NumeroPublicacion': text_fix(nodo.get('NumeroPublicacion')),
-                        'Divisa': text_fix(nodo.get('Divisa')),
-                        'TipoCuenta': text_fix(nodo.get('TipoCuenta')),
-                        'Entidad': text_fix(nodo.get('Entidad'))
-                    }
-                ]
-            }
-        }
-
-    def redam_detalle(nodo):
-        return {
-            'FechaCreacionReciente': text_fix(nodo.get('FechaCreacionReciente')),
-            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
-            'MontoSoles': float_fix(nodo.get('MontoSoles')),
-            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
-            'MontoDolares': float_fix(nodo.get('MontoDolares')),
-            'Detalle': {
-                'Deuda': [
-                    {
-                        'FechaCreacion': text_fix(nodo.get('FechaCreacion')),
-                        'NumeroExpediente': text_fix(nodo.get('NumeroExpediente')),
-                        'PensionMensual': float_fix(nodo.get('PensionMensual')),
-                        'MontoImporteAdeudado': float_fix(nodo.get('MontoImporteAdeudado')),
-                        'Divisa': text_fix(nodo.get('Divisa'))
-                    }
-                ]
-            }
-        }
-
-    def vista_historica_detalle(nodo):
+    def deudas_ultimo_periodo(nodo):
         return {
             'periodo': text_fix(nodo.get('periodo')),
-            'TieneDeuda': bool(nodo.get('TieneDeuda')),
-            'InfocorpDeudaSoles': float_fix(nodo.get('InfocorpDeudaSoles')),
-            'InfocorpDeudaDolares': float_fix(nodo.get('InfocorpDeudaDolares')),
-            'NegSUNATDeudaSoles': float_fix(nodo.get('NegSUNATDeudaSoles'))
+            'Deuda': [deuda_ultimo_periodo(item) for item in nodo.get('Deuda', [])]
         }
 
-    def inquilinos_morosos_detalle(nodo):
+    def entidad(nodo):
         return {
-            'FechaDeudaVencidaReciente': text_fix(nodo.get('FechaDeudaVencidaReciente')),
-            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
-            'MontoSoles': float_fix(nodo.get('MontoSoles')),
-            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
-            'MontoDolares': float_fix(nodo.get('MontoDolares')),
-            'Detalle': {
-                'Deuda': [
-                    {
-                        'FechaVencimiento': text_fix(nodo.get('FechaVencimiento')),
-                        'FechaRegistro': text_fix(nodo.get('FechaRegistro')),
-                        'ArrendadorCodigoSci': text_fix(nodo.get('ArrendadorCodigoSci')),
-                        'ArrendadorTipoDocumento': text_fix(nodo.get('ArrendadorTipoDocumento')),
-                        'ArrendadorNroDocumento': text_fix(nodo.get('ArrendadorNroDocumento')),
-                        'ArrendadorNombreRazonSocial': text_fix(nodo.get('ArrendadorNombreRazonSocial')),
-                        'ArrendadorDireccion': text_fix(nodo.get('ArrendadorDireccion')),
-                        'ArrendadorDistrito': text_fix(nodo.get('ArrendadorDistrito')),
-                        'ArrendadorProvincia': text_fix(nodo.get('ArrendadorProvincia')),
-                        'ArrendadorDepartamento': text_fix(nodo.get('ArrendadorDepartamento')),
-                        'ArrendadorTelefono': text_fix(nodo.get('ArrendadorTelefono')),
-                        'ArrendadorCelular': text_fix(nodo.get('ArrendadorCelular')),
-                        'ArrendadorMail': text_fix(nodo.get('ArrendadorMail')),
-                        'ArrendadorNroDocumentoMoroso': text_fix(nodo.get('ArrendadorNroDocumentoMoroso')),
-                        'ArrendatarioTipoDocumento': text_fix(nodo.get('ArrendatarioTipoDocumento')),
-                        'ArrendatarioNroDocumento': text_fix(nodo.get('ArrendatarioNroDocumento')),
-                        'ArrendatarioApePaterno': text_fix(nodo.get('ArrendatarioApePaterno')),
-                        'ArrendatarioApeMaterno': text_fix(nodo.get('ArrendatarioApeMaterno')),
-                        'ArrendatarioNombre': text_fix(nodo.get('ArrendatarioNombre')),
-                        'ArrendatarioRazonSocial': text_fix(nodo.get('ArrendatarioRazonSocial')),
-                        'ArrendatarioDireccion': text_fix(nodo.get('ArrendatarioDireccion')),
-                        'ArrendatarioDistrito': text_fix(nodo.get('ArrendatarioDistrito')),
-                        'ArrendatarioProvincia': text_fix(nodo.get('ArrendatarioProvincia')),
-                        'ArrendatarioDepartamento': text_fix(nodo.get('ArrendatarioDepartamento')),
-                        'ArrendatarioDireccionArrendada': text_fix(nodo.get('ArrendatarioDireccionArrendada')),
-                        'ArrendatarioDistritoArrendada': text_fix(nodo.get('ArrendatarioDistritoArrendada')),
-                        'ArrendatarioProvinciaArrendada': text_fix(nodo.get('ArrendatarioProvinciaArrendada')),
-                        'ArrendatarioDepartamentoArrendada': text_fix(nodo.get('ArrendatarioDepartamentoArrendada')),
-                        'ArrendatarioFechaVencimiento': text_fix(nodo.get('ArrendatarioFechaVencimiento')),
-                        'ArrendatarioTipoMoneda': text_fix(nodo.get('ArrendatarioTipoMoneda')),
-                        'ArrendatarioMontoImpago': float_fix(nodo.get('ArrendatarioMontoImpago')),
-                        'ArrendatarioTipoRegistro': text_fix(nodo.get('ArrendatarioTipoRegistro')),
-                        'ArrendatarioCelular': text_fix(nodo.get('ArrendatarioCelular')),
-                        'ArrendatarioMail': text_fix(nodo.get('ArrendatarioMail'))
-                    }
-                ]
+            'Codigo': text_fix(nodo.get('Codigo')),
+            'Nombre': text_fix(nodo.get('Nombre')),
+            'Calificacion': text_fix(nodo.get('Calificacion')),
+            'CreditosVigentes': float_fix(nodo.get('CreditosVigentes')),
+            'CreditosRefinanciados': float_fix(nodo.get('CreditosRefinanciados')),
+            'CreditosVencidos': float_fix(nodo.get('CreditosVencidos')),
+            'CreditosJudicial': float_fix(nodo.get('CreditosJudicial'))
+        }
+
+    def detalle_entidades(nodo):
+        return {
+            'periodo': text_fix(nodo.get('periodo')),
+            'Entidad': [entidad(item) for item in nodo.get('Entidad', [])]
+        }
+
+    def calificaciones(nodo):
+        return {
+            'NOR': float_fix(nodo.get('NOR')),
+            'CPP': float_fix(nodo.get('CPP')),
+            'DEF': float_fix(nodo.get('DEF')),
+            'DUD': float_fix(nodo.get('DUD')),
+            'PER': float_fix(nodo.get('PER'))
+        }
+
+    def deuda(nodo):
+        return {
+            'CodigoCuenta': text_fix(nodo.get('CodigoCuenta')),
+            'NombreCuenta': text_fix(nodo.get('NombreCuenta')),
+            'DescripcionCuenta': text_fix(nodo.get('DescripcionCuenta')),
+            'CodigoEntidad': text_fix(nodo.get('CodigoEntidad')),
+            'NombreEntidad': text_fix(nodo.get('NombreEntidad')),
+            'Calificacion': float_fix(nodo.get('Calificacion')),
+            'Monto': float_fix(nodo.get('Monto'))
+        }
+
+    def periodo(nodo):
+        return {
+            'valor': text_fix(nodo.get('valor')),
+            'flag': bool(nodo.get('flag')),
+            'NroEntidades': int_fix(nodo.get('NroEntidades')),
+            'Calificaciones': calificaciones(nodo.get('Calificaciones', {})),
+            'Deudas': {
+                'Deuda': [deuda(item) for item in nodo.get('Deudas', {}).get('Deuda', [])]
             }
         }
 
-    def deudas_impagas(nodo):
+    def rcc(nodo):
         return {
-            'ResumenDeudasImpagas': resumen_deudas_impagas(nodo.get('ResumenDeudasImpagas', {})),
-            'Sicom': sicom_detalle(nodo.get('Sicom', {})),
-            'NegativoSunat': negativo_sunat_detalle(nodo.get('NegativoSunat', {})),
-            'Omisos': {
-                'Cabecera': {
-                    'Cantidad': int_fix(nodo.get('Cabecera', {}).get('Cantidad'))
-                },
-                'Detalle': {
-                    'Omision': [omision_detalle(item) for item in nodo.get('Detalle', {}).get('Omision', [])]
-                }
-            },
-            'Protestos': {
-                'ProtestosAclarados': protestos_aclarados_detalle(nodo.get('ProtestosAclarados', {})),
-                'ProtestosNoAclarados': protestos_no_aclarados_detalle(nodo.get('ProtestosNoAclarados', {}))
-            },
-            'CuentasCerradas': cuentas_cerradas_detalle(nodo.get('CuentasCerradas', {})),
-            'TarjetasAnuladas': tarjetas_anuladas_detalle(nodo.get('TarjetasAnuladas', {})),
-            'Redam': redam_detalle(nodo.get('Redam', {})),
-            'VistaHistorica': {
-                'Periodo': [vista_historica_detalle(item) for item in nodo.get('VistaHistorica', {}).get('Periodo', [])]
-            },
-            'InquilinosMorosos': inquilinos_morosos_detalle(nodo.get('InquilinosMorosos', {}))
+            'DetalleEntidades': detalle_entidades(nodo.get('DetalleEntidades', {})),
+            'Periodos': {
+                'Periodo': [periodo(item) for item in nodo.get('Periodos', {}).get('Periodo', [])]
+            }
         }
 
-    data_output = deudas_impagas(nodo)
+    def sistema_financiero(nodo):
+        return {
+            'ResumenComportamientoPago': resumen_comportamiento_pago(nodo.get('ResumenComportamientoPago', {})),
+            'DeudasHistoricas': deudas_historicas(nodo.get('DeudasHistoricas', {})),
+            'DeudasUltimoPeriodo': deudas_ultimo_periodo(nodo.get('DeudasUltimoPeriodo', {})),
+            'RCC': rcc(nodo.get('RCC', {})),
+            'Rectificaciones': nodo.get('Rectificaciones', {}),
+            'Avalistas': nodo.get('Avalistas', {}),
+            'Microfinanzas': nodo.get('Microfinanzas', {})
+        }
+
+    data_output = sistema_financiero(nodo)
 
     # Limpiar objetos vacíos
     def clean_data(data):
@@ -324,7 +204,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "DeudasImpagas": data_output
+                    "SistemaFinanciero": data_output
                 }
             }
         except Exception as e:
@@ -335,18 +215,18 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "DeudasImpagas": {}
+                    "SistemaFinanciero": {}
                 }
             }
     else:
         try:
             final_out = {
-                "DeudasImpagas": {
+                "SistemaFinanciero": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": {
                         "flag": modulo[0].get('Data').get('flag'),
-                        "DeudasImpagas": data_output
+                        "SistemaFinanciero": data_output
                     }
                 }
             }
@@ -354,12 +234,12 @@ def main(payload):
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "DeudasImpagas": {
+                "SistemaFinanciero": {
                     "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": {
                         "flag": False,
-                        "DeudasImpagas": {}
+                        "SistemaFinanciero": {}
                     }
                 }
             }
