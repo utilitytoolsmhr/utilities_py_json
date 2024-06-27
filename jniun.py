@@ -1,3 +1,10 @@
+# ==================================
+# Modulo: REGISTRO CREDITICIO CONSOLIDADO
+# Autor: José Reyes         
+# Correo: jose.reyes3@equifax.com
+# Fecha: 27-06-2024
+# ==================================
+
 import os
 import sys
 import traceback
@@ -18,8 +25,8 @@ def main(payload):
     tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
     formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
 
-    # Código modulo -> Persona Jurídica = 1
-    codigo_modulo = 445 if tipoPersona == 2 else None
+    # Código modulo -> Persona Natural o Persona Jurídica
+    codigo_modulo = 446 if tipoPersona == 2 else 447
 
     try:
         # Captura respuesta API-DSS
@@ -29,8 +36,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'PROTESTOS GIRADOR'
-        target = 'CarteraMorosa'
+        nombre = 'REGISTRO CREDITICIO CONSOLIDADO'
+        target = 'RegistroCrediticioConsolidado'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -50,51 +57,178 @@ def main(payload):
     ################### Variables ###################
     #################################################
 
-    def periodo_data(nodo):
-        return [
-            {
-                'valor': text_fix(periodo.get('valor')),
-                'CantidadSolesAclarados': int_fix(periodo.get('CantidadSolesAclarados')),
-                'MontoSolesAclarados': float_fix(periodo.get('MontoSolesAclarados')),
-                'CantidadDolaresAclarados': int_fix(periodo.get('CantidadDolaresAclarados')),
-                'MontoDolaresAclarados': float_fix(periodo.get('MontoDolaresAclarados')),
-                'CantidadOmAclarados': int_fix(periodo.get('CantidadOmAclarados')),
-                'CantidadSolesNoAclarados': int_fix(periodo.get('CantidadSolesNoAclarados')),
-                'MontoSolesNoAclarados': float_fix(periodo.get('MontoSolesNoAclarados')),
-                'CantidadDolaresNoAclarados': int_fix(periodo.get('CantidadDolaresNoAclarados')),
-                'MontoDolaresNoAclarados': float_fix(periodo.get('MontoDolaresNoAclarados')),
-                'CantidadOmNoAclarados': int_fix(periodo.get('CantidadOmNoAclarados'))
-            }
-            for periodo in nodo.get('Periodo', [])
-        ]
-
-    def detalle_protestos(nodo):
-        return [
-            {
-                'CorrelativoBNP': text_fix(protesto.get('CorrelativoBNP')),
-                'NumeroBoletin': text_fix(protesto.get('NumeroBoletin')),
-                'TipoDocumento': text_fix(protesto.get('TipoDocumento')),
-                'Moneda': text_fix(protesto.get('Moneda')),
-                'Monto': float_fix(protesto.get('Monto')),
-                'Emisor': text_fix(protesto.get('Emisor')),
-                'FechaVencimiento': text_fix(protesto.get('FechaVencimiento')),
-                'FechaAclaracion': text_fix(protesto.get('FechaAclaracion')),
-                'Notaria': text_fix(protesto.get('Notaria'))
-            }
-            for protesto in nodo.get('Protesto', [])
-        ]
-
-    def cartera_morosa(nodo):
+    def detalle_entidades(nodo):
         return {
-            'ResumenProtestos': {
-                'Periodo': periodo_data(nodo.get('ResumenProtestos', {}))
+            'Entidad': [
+                {
+                    'Codigo': text_fix(entidad.get('Codigo')),
+                    'Nombre': text_fix(entidad.get('Nombre')),
+                    'Calificacion': text_fix(entidad.get('Calificacion')),
+                    'CreditosVigentes': float_fix(entidad.get('CreditosVigentes')),
+                    'CreditosRefinanciados': float_fix(entidad.get('CreditosRefinanciados')),
+                    'CreditosVencidos': float_fix(entidad.get('CreditosVencidos')),
+                    'CreditosJudicial': float_fix(entidad.get('CreditosJudicial'))
+                }
+                for entidad in nodo.get('Entidad', [])
+            ],
+            'periodo': text_fix(nodo.get('periodo'))
+        }
+
+    def periodos_data(nodo):
+        return {
+            'Periodo': [
+                {
+                    'valor': text_fix(periodo.get('valor')),
+                    'flag': periodo.get('flag') == "true",
+                    'NroEntidades': text_fix(periodo.get('NroEntidades')),
+                    'Calificaciones': {
+                        'NOR': text_fix(periodo.get('Calificaciones').get('NOR')),
+                        'CPP': text_fix(periodo.get('Calificaciones').get('CPP')),
+                        'DEF': text_fix(periodo.get('Calificaciones').get('DEF')),
+                        'DUD': text_fix(periodo.get('Calificaciones').get('DUD')),
+                        'PER': text_fix(periodo.get('Calificaciones').get('PER'))
+                    },
+                    'Deudas': {
+                        'Deuda': [
+                            {
+                                'CodigoCuenta': text_fix(deuda.get('CodigoCuenta')),
+                                'NombreCuenta': text_fix(deuda.get('NombreCuenta')),
+                                'DescripcionCuenta': text_fix(deuda.get('DescripcionCuenta')),
+                                'CodigoEntidad': text_fix(deuda.get('CodigoEntidad')),
+                                'NombreEntidad': text_fix(deuda.get('NombreEntidad')),
+                                'Calificacion': text_fix(deuda.get('Calificacion')),
+                                'Monto': float_fix(deuda.get('Monto'))
+                            }
+                            for deuda in periodo.get('Deudas', {}).get('Deuda', [])
+                        ]
+                    }
+                }
+                for periodo in nodo.get('Periodo', [])
+            ]
+        }
+
+    def avalistas_data(nodo):
+        return {
+            'Aval': [
+                {
+                    'TipoDocumento': text_fix(aval.get('TipoDocumento')),
+                    'NumeroDocumento': text_fix(aval.get('NumeroDocumento')),
+                    'NombreAval': text_fix(aval.get('NombreAval')),
+                    'Entidades': {
+                        'Entidad': [
+                            {
+                                'Descripcion': text_fix(entidad.get('Descripcion')),
+                                'Periodos': {
+                                    'Periodo': [
+                                        {
+                                            'periodo': text_fix(periodo.get('periodo')),
+                                            'Calificacion': text_fix(periodo.get('Calificacion')),
+                                            'Saldo': float_fix(periodo.get('Saldo'))
+                                        }
+                                        for periodo in entidad.get('Periodos', {}).get('Periodo', [])
+                                    ]
+                                }
+                            }
+                            for entidad in aval.get('Entidades', {}).get('Entidad', [])
+                        ]
+                    }
+                }
+                for aval in nodo.get('Aval', [])
+            ]
+        }
+
+    def microfinanzas_data(nodo):
+        return {
+            'CalificacionEntidad': {
+                'Entidades': [
+                    {
+                        'periodo': text_fix(entidad.get('periodo')),
+                        'flag': entidad.get('flag') == "true",
+                        'Entidad': [
+                            {
+                                'Codigo': text_fix(ent.get('Codigo')),
+                                'Nombre': text_fix(ent.get('Nombre')),
+                                'Clasificacion': text_fix(ent.get('Clasificacion'))
+                            }
+                            for ent in entidad.get('Entidad', [])
+                        ]
+                    }
+                    for entidad in nodo.get('CalificacionEntidad', {}).get('Entidades', [])
+                ]
             },
-            'DetalleProtestos': {
-                'Protesto': detalle_protestos(nodo.get('DetalleProtestos', {}))
+            'Periodos': {
+                'Periodo': [
+                    {
+                        'valor': text_fix(periodo.get('valor')),
+                        'flag': periodo.get('flag') == "true",
+                        'NroEntidades': text_fix(periodo.get('NroEntidades')),
+                        'Calificaciones': {
+                            'NOR': text_fix(periodo.get('Calificaciones').get('NOR')),
+                            'CPP': text_fix(periodo.get('Calificaciones').get('CPP')),
+                            'DEF': text_fix(periodo.get('Calificaciones').get('DEF')),
+                            'DUD': text_fix(periodo.get('Calificaciones').get('DUD')),
+                            'PER': text_fix(periodo.get('Calificaciones').get('PER'))
+                        },
+                        'Deudas': {
+                            'Deuda': [
+                                {
+                                    'Cuenta': text_fix(deuda.get('Cuenta')),
+                                    'CodigoCuenta': text_fix(deuda.get('CodigoCuenta')),
+                                    'NombreCuenta': text_fix(deuda.get('NombreCuenta')),
+                                    'CodigoEntidad': text_fix(deuda.get('CodigoEntidad')),
+                                    'NombreEntidad': text_fix(deuda.get('NombreEntidad')),
+                                    'Monto': float_fix(deuda.get('Monto'))
+                                }
+                                for deuda in periodo.get('Deudas', {}).get('Deuda', [])
+                            ]
+                        }
+                    }
+                    for periodo in nodo.get('Periodos', {}).get('Periodo', [])
+                ]
             }
         }
 
-    data_output = cartera_morosa(nodo)
+    def rectificaciones_data(nodo):
+        return {
+            'Rectificacion': [
+                {
+                    'periodo': text_fix(rectificacion.get('periodo')),
+                    'Entidades': {
+                        'Entidad': [
+                            {
+                                'Codigo': text_fix(entidad.get('Codigo')),
+                                'Nombre': text_fix(entidad.get('Nombre')),
+                                'Detalles': {
+                                    'Detalle': [
+                                        {
+                                            'Concepto': text_fix(detalle.get('Concepto')),
+                                            'Dice': text_fix(detalle.get('Dice')),
+                                            'Debedecir': text_fix(detalle.get('Debedecir'))
+                                        }
+                                        for detalle in entidad.get('Detalles', {}).get('Detalle', [])
+                                    ]
+                                }
+                            }
+                            for entidad in rectificacion.get('Entidades', {}).get('Entidad', [])
+                        ]
+                    }
+                }
+                for rectificacion in nodo.get('Rectificacion', [])
+            ]
+        }
+
+    def registro_crediticio_consolidado(nodo):
+        return {
+            'RCC': {
+                'DetalleEntidades': detalle_entidades(nodo.get('RCC', {}).get('DetalleEntidades', {})),
+                'Periodos': periodos_data(nodo.get('RCC', {}).get('Periodos', {}))
+            },
+            'Avalistas': avalistas_data(nodo.get('Avalistas', {})),
+            'Microfinanzas': microfinanzas_data(nodo.get('Microfinanzas', {})),
+            'Rectificaciones': rectificaciones_data(nodo.get('Rectificaciones', {}))
+        }
+
+    data_output = registro_crediticio_consolidado(nodo)
 
     # Limpiar objetos vacíos
     def clean_data(data):
@@ -118,7 +252,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "CarteraMorosa": data_output
+                    "RegistroCrediticioConsolidado": data_output
                 }
             }
         except Exception as e:
@@ -129,18 +263,18 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "CarteraMorosa": {}
+                    "RegistroCrediticioConsolidado": {}
                 }
             }
     else:
         try:
             final_out = {
-                "CarteraMorosa": {
+                "RegistroCrediticioConsolidado": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": {
                         "flag": modulo[0].get('Data').get('flag'),
-                        "CarteraMorosa": data_output
+                        "RegistroCrediticioConsolidado": data_output
                     }
                 }
             }
@@ -148,12 +282,12 @@ def main(payload):
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "CarteraMorosa": {
+                "RegistroCrediticioConsolidado": {
                     "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": {
                         "flag": False,
-                        "CarteraMorosa": {}
+                        "RegistroCrediticioConsolidado": {}
                     }
                 }
             }
