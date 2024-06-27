@@ -1,4 +1,3 @@
-
 import os
 import sys
 import traceback
@@ -51,43 +50,167 @@ def main(payload):
     ################### Variables ###################
     #################################################
 
-    def deudas_impagas_protestadas(nodo):
+    def deuda_detalle(nodo):
         return {
-            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
-            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+            'FechaVencimiento': text_fix(nodo.get('FechaVencimiento')),
+            'FechaReportada': text_fix(nodo.get('FechaReportada')),
+            'Divisa': text_fix(nodo.get('Divisa')),
+            'Monto': float_fix(nodo.get('Monto')),
+            'Acreedor': text_fix(nodo.get('Acreedor')),
+            'DocumentoBancario': text_fix(nodo.get('DocumentoBancario')),
+            'CondicionDeuda': text_fix(nodo.get('CondicionDeuda')),
+            'TipoDeudor': text_fix(nodo.get('TipoDeudor')),
+            'GiroNegocio': text_fix(nodo.get('GiroNegocio'))
         }
 
-    def deudas_impagas_infocorp(nodo):
+    def sicom_detalle(nodo):
         return {
-            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
-            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+            'FechaVencimientoReciente': text_fix(nodo.get('FechaVencimientoReciente')),
+            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
+            'MontoSoles': float_fix(nodo.get('MontoSoles')),
+            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
+            'MontoDolares': float_fix(nodo.get('MontoDolares')),
+            'Detalle': {
+                'Deuda': [deuda_detalle(item) for item in nodo.get('Deuda', [])]
+            }
         }
 
-    def deudas_impagas_sunat(nodo):
+    def negativo_sunat_detalle(nodo):
         return {
-            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
-            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+            'FechaCobranzaReciente': text_fix(nodo.get('FechaCobranzaReciente')),
+            'CantidadTotal': int_fix(nodo.get('CantidadTotal')),
+            'MontoTotal': float_fix(nodo.get('MontoTotal')),
+            'Detalle': {
+                'Deuda': [
+                    {
+                        'Periodo': text_fix(nodo.get('Periodo')),
+                        'Monto': float_fix(nodo.get('Monto')),
+                        'Tipo': text_fix(nodo.get('Tipo')),
+                        'Dependencia': text_fix(nodo.get('Dependencia')),
+                        'FechaCobranza': text_fix(nodo.get('FechaCobranza')),
+                        'FechaProceso': text_fix(nodo.get('FechaProceso'))
+                    }
+                ]
+            }
         }
 
-    def deudas_impagas_previsional(nodo):
+    def omision_detalle(nodo):
         return {
-            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
-            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+            'FechaOmision': text_fix(nodo.get('FechaOmision')),
+            'Concepto': text_fix(nodo.get('Concepto')),
+            'FechaProceso': text_fix(nodo.get('FechaProceso'))
         }
 
-    def odi_detalle(nodo):
+    def protestos_detalle(nodo):
         return {
-            'Periodo': text_fix(nodo.get('Periodo')),
-            'Riesgo': text_fix(nodo.get('Riesgo')),
-            'DeudasImpagasProtestadas': deudas_impagas_protestadas(nodo.get('DeudasImpagasProtestadas', {})),
-            'DeudasImpagasInfocorp': deudas_impagas_infocorp(nodo.get('DeudasImpagasInfocorp', {})),
-            'DeudasImpagasSunat': deudas_impagas_sunat(nodo.get('DeudasImpagasSunat', {})),
-            'DeudasImpagasPrevisional': deudas_impagas_previsional(nodo.get('DeudasImpagasPrevisional', {}))
+            'CorrelativoBNP': text_fix(nodo.get('CorrelativoBNP')),
+            'NumeroBoletin': text_fix(nodo.get('NumeroBoletin')),
+            'TipoDocumento': text_fix(nodo.get('TipoDocumento')),
+            'Divisa': text_fix(nodo.get('Divisa')),
+            'Monto': float_fix(nodo.get('Monto')),
+            'EmisorDocumento': text_fix(nodo.get('EmisorDocumento')),
+            'AceptanteDocumento': text_fix(nodo.get('AceptanteDocumento')),
+            'FechaVencimiento': text_fix(nodo.get('FechaVencimiento')),
+            'FechaAclaracion': text_fix(nodo.get('FechaAclaracion')),
+            'Notaria': text_fix(nodo.get('Notaria'))
+        }
+
+    def protestos_aclarados_detalle(nodo):
+        return {
+            'FechaVencimientoReciente': text_fix(nodo.get('FechaVencimientoReciente')),
+            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
+            'MontoSoles': float_fix(nodo.get('MontoSoles')),
+            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
+            'MontoDolares': float_fix(nodo.get('MontoDolares')),
+            'Detalle': {
+                'Deuda': [protestos_detalle(item) for item in nodo.get('Deuda', [])]
+            }
+        }
+
+    def protestos_no_aclarados_detalle(nodo):
+        return {
+            'FechaVencimientoReciente': text_fix(nodo.get('FechaVencimientoReciente')),
+            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
+            'MontoSoles': float_fix(nodo.get('MontoSoles')),
+            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
+            'MontoDolares': float_fix(nodo.get('MontoDolares')),
+            'Detalle': {
+                'Deuda': [protestos_detalle(item) for item in nodo.get('Deuda', [])]
+            }
+        }
+
+    def cuentas_cerradas_detalle(nodo):
+        return {
+            'FechaSancionReciente': text_fix(nodo.get('FechaSancionReciente')),
+            'Detalle': {
+                'InformacionNegativa': [
+                    {
+                        'FechaSancion': text_fix(nodo.get('FechaSancion')),
+                        'FechaFinSancion': text_fix(nodo.get('FechaFinSancion')),
+                        'FechaPublicacion': text_fix(nodo.get('FechaPublicacion')),
+                        'NumeroPublicacion': text_fix(nodo.get('NumeroPublicacion')),
+                        'Divisa': text_fix(nodo.get('Divisa')),
+                        'TipoCuenta': text_fix(nodo.get('TipoCuenta')),
+                        'Entidad': text_fix(nodo.get('Entidad'))
+                    }
+                ]
+            }
+        }
+
+    def tarjetas_anuladas_detalle(nodo):
+        return {
+            'FechaSancionReciente': text_fix(nodo.get('FechaSancionReciente')),
+            'Detalle': {
+                'InformacionNegativa': [
+                    {
+                        'FechaSancion': text_fix(nodo.get('FechaSancion')),
+                        'FechaFinSancion': text_fix(nodo.get('FechaFinSancion')),
+                        'FechaPublicacion': text_fix(nodo.get('FechaPublicacion')),
+                        'NumeroPublicacion': text_fix(nodo.get('NumeroPublicacion')),
+                        'Divisa': text_fix(nodo.get('Divisa')),
+                        'TipoCuenta': text_fix(nodo.get('TipoCuenta')),
+                        'Entidad': text_fix(nodo.get('Entidad'))
+                    }
+                ]
+            }
+        }
+
+    def redam_detalle(nodo):
+        return {
+            'FechaCreacionReciente': text_fix(nodo.get('FechaCreacionReciente')),
+            'CantidadSoles': int_fix(nodo.get('CantidadSoles')),
+            'MontoSoles': float_fix(nodo.get('MontoSoles')),
+            'CantidadDolares': int_fix(nodo.get('CantidadDolares')),
+            'MontoDolares': float_fix(nodo.get('MontoDolares')),
+            'Detalle': nodo.get('Detalle', {})
+        }
+
+    def inquilinos_morosos_detalle(nodo):
+        return {
+            'Cabecera': nodo.get('Cabecera', {}),
+            'Detalle': nodo.get('Detalle', {})
         }
 
     def otras_deudas_impagas(nodo):
         return {
-            'ODIDetalle': [odi_detalle(item) for item in nodo.get('ODIDetalle', [])]
+            'Sicom': [sicom_detalle(item) for item in nodo.get('Sicom', [])],
+            'NegativoSunat': negativo_sunat_detalle(nodo.get('NegativoSunat', {})),
+            'Omisos': {
+                'Cabecera': {
+                    'Cantidad': int_fix(nodo.get('Cabecera', {}).get('Cantidad'))
+                },
+                'Detalle': {
+                    'Omision': [omision_detalle(item) for item in nodo.get('Detalle', {}).get('Omision', [])]
+                }
+            },
+            'Protestos': {
+                'ProtestosAclarados': protestos_aclarados_detalle(nodo.get('ProtestosAclarados', {})),
+                'ProtestosNoAclarados': protestos_no_aclarados_detalle(nodo.get('ProtestosNoAclarados', {}))
+            },
+            'CuentasCerradas': cuentas_cerradas_detalle(nodo.get('CuentasCerradas', {})),
+            'TarjetasAnuladas': tarjetas_anuladas_detalle(nodo.get('TarjetasAnuladas', {})),
+            'Redam': redam_detalle(nodo.get('Redam', {})),
+            'InquilinosMorosos': inquilinos_morosos_detalle(nodo.get('InquilinosMorosos', {}))
         }
 
     data_output = otras_deudas_impagas(nodo)
