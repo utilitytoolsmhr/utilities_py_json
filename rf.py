@@ -1,4 +1,3 @@
-
 import os
 import sys
 import traceback
@@ -19,8 +18,8 @@ def main(payload):
     tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
     formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
 
-    # Código modulo -> Persona Natural = 1
-    codigo_modulo = 444 if tipoPersona == 1 else None
+    # Código modulo -> Persona Jurídica = 1
+    codigo_modulo = 622
 
     try:
         # Captura respuesta API-DSS
@@ -30,8 +29,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'SCORE PREDICTIVO CON VARIABLES (PN)'
-        target = 'ResumenScoreRP3'
+        nombre = 'SCORE PREDICTIVO CON VARIABLES (PJ)'
+        target = 'ResumenScore'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -53,25 +52,29 @@ def main(payload):
 
     def principales_variables(nodo):
         return {
-            'PresentaInformacionSFR': {
-                'Variable': text_fix(nodo.get('PresentaInformacionSFR', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('PresentaInformacionSFR', {}).get('Valor'))
+            'PeorRating': {
+                'Variable': text_fix(nodo.get('PeorRating', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('PeorRating', {}).get('Valor'))
             },
             'PresentaDeudas': {
                 'Variable': text_fix(nodo.get('PresentaDeudas', {}).get('Variable')),
                 'Valor': text_fix(nodo.get('PresentaDeudas', {}).get('Valor'))
             },
-            'InformacionReportadaInfocorp': {
-                'Variable': text_fix(nodo.get('InformacionReportadaInfocorp', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('InformacionReportadaInfocorp', {}).get('Valor'))
+            'DeudasAtrasadas': {
+                'Variable': text_fix(nodo.get('DeudasAtrasadas', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('DeudasAtrasadas', {}).get('Valor'))
             },
-            'MalComportamientoCrediticio': {
-                'Variable': text_fix(nodo.get('MalComportamientoCrediticio', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('MalComportamientoCrediticio', {}).get('Valor'))
+            'DeudasNegativasReportadasSunat': {
+                'Variable': text_fix(nodo.get('DeudasNegativasReportadasSunat', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('DeudasNegativasReportadasSunat', {}).get('Valor'))
+            },
+            'ProtestosNoAclarados': {
+                'Variable': text_fix(nodo.get('ProtestosNoAclarados', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('ProtestosNoAclarados', {}).get('Valor'))
             }
         }
 
-    def resumen_score_rp3(nodo):
+    def resumen_score(nodo):
         return {
             'Puntaje': int_fix(nodo.get('Puntaje')),
             'NivelRiesgo': text_fix(nodo.get('NivelRiesgo')),
@@ -79,7 +82,7 @@ def main(payload):
             'PrincipalesVariables': principales_variables(nodo.get('PrincipalesVariables', {}))
         }
 
-    data_output = resumen_score_rp3(nodo)
+    data_output = resumen_score(nodo)
 
     # Limpiar objetos vacíos
     def clean_data(data):
@@ -103,7 +106,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "ResumenScoreRP3": data_output
+                    "ResumenScore": data_output
                 }
             }
         except Exception as e:
@@ -114,18 +117,18 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "ResumenScoreRP3": {}
+                    "ResumenScore": {}
                 }
             }
     else:
         try:
             final_out = {
-                "ResumenScoreRP3": {
+                "ResumenScore": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": {
                         "flag": modulo[0].get('Data').get('flag'),
-                        "ResumenScoreRP3": data_output
+                        "ResumenScore": data_output
                     }
                 }
             }
@@ -133,12 +136,12 @@ def main(payload):
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "ResumenScoreRP3": {
+                "ResumenScore": {
                     "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": {
                         "flag": False,
-                        "ResumenScoreRP3": {}
+                        "ResumenScore": {}
                     }
                 }
             }
