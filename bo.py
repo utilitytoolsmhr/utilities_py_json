@@ -109,15 +109,17 @@ def boletinoficial(nodo):
         'EscisionPatrimonio': escision_patrimonio(nodo.get('EscisionPatrimonio', {})),
         'RematesWarrants': remates_warrants(nodo.get('RematesWarrants', {})),
         'Disoluciones': disoluciones(nodo.get('Disoluciones', {})),
-        'CambiosCapital': cambios_capital(nodo.get('CambiosCapital', {}))
+        'CambiosCapital': cambios_capital(nodo.get('CambiosCapital', {})),
+        'EntidadesJudiciales': entidades_judiciales(nodo.get('EntidadesJudiciales', {})),
+        'Convocatorias': convocatorias(nodo.get('Convocatorias', {}))
     }
 
 def extincion_patrimonio_familiar(nodo):
     return {
         'PatrimonioFamiliar': [
             {
-                'FechaComunicacion': item.get('FechaComunicacion'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
+                'FechaComunicacion': text_fix(item.get('FechaComunicacion')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
                 'Personas': personas(item.get('Personas', {})),
                 'Bienes': bienes(item.get('Bienes', {}))
             } for item in nodo.get('PatrimonioFamiliar', [])
@@ -128,8 +130,8 @@ def constitucion_patrimonio_familiar(nodo):
     return {
         'PatrimonioFamiliar': [
             {
-                'FechaComunicacion': item.get('FechaComunicacion'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
+                'FechaComunicacion': text_fix(item.get('FechaComunicacion')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
                 'Personas': personas(item.get('Personas', {})),
                 'Bienes': bienes(item.get('Bienes', {}))
             } for item in nodo.get('PatrimonioFamiliar', [])
@@ -140,12 +142,12 @@ def obligacion_dar_dinero(nodo):
     return {
         'Obligacion': [
             {
-                'Motivo': item.get('Motivo'),
-                'Divisa': item.get('Divisa'),
-                'Monto': item.get('Monto'),
-                'Juzgado': item.get('Juzgado'),
-                'FechaResolucion': item.get('FechaResolucion'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
+                'Motivo': text_fix(item.get('Motivo')),
+                'Divisa': text_fix(item.get('Divisa')),
+                'Monto': float_fix(item.get('Monto')),
+                'Juzgado': text_fix(item.get('Juzgado')),
+                'FechaResolucion': text_fix(item.get('FechaResolucion')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
                 'Acreedores': acreedores(item.get('Acreedores', {})),
                 'Deudores': deudores(item.get('Deudores', {}))
             } for item in nodo.get('Obligacion', [])
@@ -156,17 +158,17 @@ def remates_bienes_muebles(nodo):
     return {
         'RemateMueble': [
             {
-                'NumeroExpediente': item.get('NumeroExpediente'),
-                'NumeroRemate': item.get('NumeroRemate'),
-                'Motivo': item.get('Motivo'),
-                'Juzgado': item.get('Juzgado'),
-                'EncargoDe': item.get('EncargoDe'),
-                'Divisa': item.get('Divisa'),
-                'MontoTasacion': item.get('MontoTasacion'),
-                'MontoBase': item.get('MontoBase'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Ubigeo': item.get('Ubigeo'),
-                'Direccion': item.get('Direccion'),
+                'NumeroExpediente': text_fix(item.get('NumeroExpediente')),
+                'NumeroRemate': text_fix(item.get('NumeroRemate')),
+                'Motivo': text_fix(item.get('Motivo')),
+                'Juzgado': text_fix(item.get('Juzgado')),
+                'EncargoDe': text_fix(item.get('EncargoDe')),
+                'Divisa': text_fix(item.get('Divisa')),
+                'MontoTasacion': float_fix(item.get('MontoTasacion')),
+                'MontoBase': float_fix(item.get('MontoBase')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'Ubigeo': text_fix(item.get('Ubigeo')),
+                'Direccion': text_fix(item.get('Direccion')),
                 'Demandantes': demandantes(item.get('Demandantes', {})),
                 'Demandados': demandados(item.get('Demandados', {})),
                 'Muebles': muebles(item.get('Muebles', {})),
@@ -180,16 +182,16 @@ def remates_bienes_inmuebles(nodo):
     return {
         'RemateInmueble': [
             {
-                'NumeroExpediente': item.get('NumeroExpediente'),
-                'NumeroRemate': item.get('NumeroRemate'),
-                'Motivo': item.get('Motivo'),
-                'Juzgado': item.get('Juzgado'),
-                'Divisa': item.get('Divisa'),
-                'MontoTasacion': item.get('MontoTasacion'),
-                'MontoBase': item.get('MontoBase'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Ubigeo': item.get('Ubigeo'),
-                'Direccion': item.get('Direccion'),
+                'NumeroExpediente': text_fix(item.get('NumeroExpediente')),
+                'NumeroRemate': text_fix(item.get('NumeroRemate')),
+                'Motivo': text_fix(item.get('Motivo')),
+                'Juzgado': text_fix(item.get('Juzgado')),
+                'Divisa': text_fix(item.get('Divisa')),
+                'MontoTasacion': float_fix(item.get('MontoTasacion')),
+                'MontoBase': float_fix(item.get('MontoBase')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'Ubigeo': text_fix(item.get('Ubigeo')),
+                'Direccion': text_fix(item.get('Direccion')),
                 'Demandantes': demandantes(item.get('Demandantes', {})),
                 'Demandados': demandados(item.get('Demandados', {})),
                 'Muebles': muebles(item.get('Muebles', {})),
@@ -203,24 +205,27 @@ def convocatoria_accredores(nodo):
     return {
         'Convocatoria': [
             {
-                'Motivo': item.get('Motivo'),
-                'Numero': item.get('Numero'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Juzgado': item.get('Juzgado'),
-                'Personas': personas(item.get('Personas', {}))
+                'Motivo': text_fix(item.get('Motivo')),
+                'Numero': text_fix(item.get('Numero')),
+                'FechaComunicado': text_fix(item.get('FechaComunicado')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'FechaJunta': text_fix(item.get('FechaJunta')),
+                'HoraJunta': text_fix(item.get('HoraJunta')),
+                'Direccion': text_fix(item.get('Direccion')),
+                'Ubigeo': text_fix(item.get('Ubigeo'))
             } for item in nodo.get('Convocatoria', [])
         ]
     }
 
 def avisos_quiebra(nodo):
     return {
-        'AvisoQuiebra': [
+        'Quiebra': [
             {
-                'NumeroExpediente': item.get('NumeroExpediente'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Juzgado': item.get('Juzgado'),
-                'Personas': personas(item.get('Personas', {}))
-            } for item in nodo.get('AvisoQuiebra', [])
+                'Expediente': text_fix(item.get('Expediente')),
+                'FechaResolucion': text_fix(item.get('FechaResolucion')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'Liquidadores': liquidadores(item.get('Liquidadores', {}))
+            } for item in nodo.get('Quiebra', [])
         ]
     }
 
@@ -228,10 +233,12 @@ def fusion_sociedades(nodo):
     return {
         'Fusion': [
             {
-                'Motivo': item.get('Motivo'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Personas': personas(item.get('Personas', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
+                'NuevoNombre': text_fix(item.get('NuevoNombre')),
+                'Divisa': text_fix(item.get('Divisa')),
+                'NuevoCapital': float_fix(item.get('NuevoCapital')),
+                'FechaAcuerdo': text_fix(item.get('FechaAcuerdo')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'Empresas': empresas(item.get('Empresas', {}))
             } for item in nodo.get('Fusion', [])
         ]
     }
@@ -240,10 +247,18 @@ def escision_patrimonio(nodo):
     return {
         'Escision': [
             {
-                'Motivo': item.get('Motivo'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Personas': personas(item.get('Personas', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
+                'Divisa': text_fix(item.get('Divisa')),
+                'PatrimonioEscindido': float_fix(item.get('PatrimonioEscindido')),
+                'FechaVigencia': text_fix(item.get('FechaVigencia')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'EscindenteTipoDocumento': text_fix(item.get('EscindenteTipoDocumento')),
+                'EscindenteNumeroDocumento': text_fix(item.get('EscindenteNumeroDocumento')),
+                'EscindenteNombre': text_fix(item.get('EscindenteNombre')),
+                'EscindenteCapital': float_fix(item.get('EscindenteCapital')),
+                'BeneficiarioTipoDocumento': text_fix(item.get('BeneficiarioTipoDocumento')),
+                'BeneficiarioNumeroDocumento': text_fix(item.get('BeneficiarioNumeroDocumento')),
+                'BeneficiarioNombre': text_fix(item.get('BeneficiarioNombre')),
+                'BeneficiarioCapital': float_fix(item.get('BeneficiarioCapital'))
             } for item in nodo.get('Escision', [])
         ]
     }
@@ -252,21 +267,17 @@ def remates_warrants(nodo):
     return {
         'RemateWarrant': [
             {
-                'NumeroExpediente': item.get('NumeroExpediente'),
-                'NumeroRemate': item.get('NumeroRemate'),
-                'Motivo': item.get('Motivo'),
-                'Juzgado': item.get('Juzgado'),
-                'EncargoDe': item.get('EncargoDe'),
-                'Divisa': item.get('Divisa'),
-                'MontoTasacion': item.get('MontoTasacion'),
-                'MontoBase': item.get('MontoBase'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Ubigeo': item.get('Ubigeo'),
-                'Direccion': item.get('Direccion'),
+                'Motivo': text_fix(item.get('Motivo')),
+                'EncargoDe': text_fix(item.get('EncargoDe')),
+                'Divisa': text_fix(item.get('Divisa')),
+                'MontoTasacion': float_fix(item.get('MontoTasacion')),
+                'MontoBase': float_fix(item.get('MontoBase')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'Ubigeo': text_fix(item.get('Ubigeo')),
+                'Direccion': text_fix(item.get('Direccion')),
+                'FechaRemate': text_fix(item.get('FechaRemate')),
+                'HoraRemate': text_fix(item.get('HoraRemate')),
                 'Demandantes': demandantes(item.get('Demandantes', {})),
-                'Demandados': demandados(item.get('Demandados', {})),
-                'Muebles': muebles(item.get('Muebles', {})),
-                'Inmuebles': inmuebles(item.get('Inmuebles', {})),
                 'Mercaderias': mercaderias(item.get('Mercaderias', {}))
             } for item in nodo.get('RemateWarrant', [])
         ]
@@ -276,272 +287,184 @@ def disoluciones(nodo):
     return {
         'Disolucion': [
             {
-                'Motivo': item.get('Motivo'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Personas': personas(item.get('Personas', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
+                'Direccion': text_fix(item.get('Direccion')),
+                'Ubigeo': text_fix(item.get('Ubigeo')),
+                'FechaVigencia': text_fix(item.get('FechaVigencia')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'Liquidadores': liquidadores(item.get('Liquidadores', {}))
             } for item in nodo.get('Disolucion', [])
         ]
     }
 
 def cambios_capital(nodo):
     return {
-        'CambiosCapital': [
+        'Cambio': [
             {
-                'Motivo': item.get('Motivo'),
-                'FechaPublicacion': item.get('FechaPublicacion'),
-                'Personas': personas(item.get('Personas', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
-            } for item in nodo.get('CambiosCapital', [])
+                'FechaAcuerdo': text_fix(item.get('FechaAcuerdo')),
+                'Divisa': text_fix(item.get('Divisa')),
+                'TipoCambio': text_fix(item.get('TipoCambio')),
+                'MontoAcuerdo': float_fix(item.get('MontoAcuerdo')),
+                'CapitalAnterior': float_fix(item.get('CapitalAnterior')),
+                'CapitalActual': float_fix(item.get('CapitalActual')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion'))
+            } for item in nodo.get('Cambio', [])
         ]
     }
 
 def personas(nodo):
     return {
-        'Personas': [
+        'Persona': [
             {
-                'Nombre': item.get('Nombre'),
-                'Paterno': item.get('Paterno'),
-                'Materno': item.get('Materno'),
-                'RazonSocial': item.get('RazonSocial'),
-                'DocumentoIdentidad': documento_identidad(item.get('DocumentoIdentidad', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
-            } for item in nodo.get('Personas', [])
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'Nombres': text_fix(item.get('Nombres')),
+                'Tipo': text_fix(item.get('Tipo'))
+            } for item in nodo.get('Persona', [])
         ]
     }
 
 def bienes(nodo):
     return {
-        'Bienes': [
+        'Bien': [
             {
-                'Tipo': item.get('Tipo'),
-                'Ubicacion': item.get('Ubicacion'),
-                'DomicilioLegal': item.get('DomicilioLegal'),
-                'FechaAdquisicion': item.get('FechaAdquisicion'),
-                'Moneda': item.get('Moneda'),
-                'Monto': item.get('Monto'),
-                'EntidadFinanciera': item.get('EntidadFinanciera'),
-                'Hipoteca': item.get('Hipoteca')
-            } for item in nodo.get('Bienes', [])
+                'Tipo': text_fix(item.get('Tipo')),
+                'RegistroPublico': text_fix(item.get('RegistroPublico')),
+                'Direccion': text_fix(item.get('Direccion')),
+                'Ubigeo': text_fix(item.get('Ubigeo'))
+            } for item in nodo.get('Bien', [])
         ]
     }
 
 def acreedores(nodo):
     return {
-        'Acreedores': [
+        'Acreedor': [
             {
-                'Nombre': item.get('Nombre'),
-                'Paterno': item.get('Paterno'),
-                'Materno': item.get('Materno'),
-                'RazonSocial': item.get('RazonSocial'),
-                'DocumentoIdentidad': documento_identidad(item.get('DocumentoIdentidad', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
-            } for item in nodo.get('Acreedores', [])
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'Nombres': text_fix(item.get('Nombres')),
+                'Tipo': text_fix(item.get('Tipo'))
+            } for item in nodo.get('Acreedor', [])
         ]
     }
 
 def deudores(nodo):
     return {
-        'Deudores': [
+        'Deudor': [
             {
-                'Nombre': item.get('Nombre'),
-                'Paterno': item.get('Paterno'),
-                'Materno': item.get('Materno'),
-                'RazonSocial': item.get('RazonSocial'),
-                'DocumentoIdentidad': documento_identidad(item.get('DocumentoIdentidad', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
-            } for item in nodo.get('Deudores', [])
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'Nombres': text_fix(item.get('Nombres')),
+                'Tipo': text_fix(item.get('Tipo'))
+            } for item in nodo.get('Deudor', [])
         ]
     }
 
 def demandantes(nodo):
     return {
-        'Demandantes': [
+        'Demandante': [
             {
-                'Nombre': item.get('Nombre'),
-                'Paterno': item.get('Paterno'),
-                'Materno': item.get('Materno'),
-                'RazonSocial': item.get('RazonSocial'),
-                'DocumentoIdentidad': documento_identidad(item.get('DocumentoIdentidad', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
-            } for item in nodo.get('Demandantes', [])
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'Nombres': text_fix(item.get('Nombres')),
+                'Tipo': text_fix(item.get('Tipo'))
+            } for item in nodo.get('Demandante', [])
         ]
     }
 
 def demandados(nodo):
     return {
-        'Demandados': [
+        'Demandado': [
             {
-                'Nombre': item.get('Nombre'),
-                'Paterno': item.get('Paterno'),
-                'Materno': item.get('Materno'),
-                'RazonSocial': item.get('RazonSocial'),
-                'DocumentoIdentidad': documento_identidad(item.get('DocumentoIdentidad', {})),
-                'Sociedades': sociedades(item.get('Sociedades', {}))
-            } for item in nodo.get('Demandados', [])
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'Nombres': text_fix(item.get('Nombres')),
+                'Tipo': text_fix(item.get('Tipo'))
+            } for item in nodo.get('Demandado', [])
         ]
     }
 
 def muebles(nodo):
     return {
-        'Muebles': [
+        'Mueble': [
             {
-                'Descripcion': item.get('Descripcion'),
-                'Marca': item.get('Marca'),
-                'Modelo': item.get('Modelo'),
-                'Serie': item.get('Serie'),
-                'Caracteristicas': item.get('Caracteristicas')
-            } for item in nodo.get('Muebles', [])
+                'Tipo': text_fix(item.get('Tipo')),
+                'Caracteristica': text_fix(item.get('Caracteristica')),
+                'MontoTasacion': float_fix(item.get('MontoTasacion')),
+                'MontoBase': float_fix(item.get('MontoBase'))
+            } for item in nodo.get('Mueble', [])
         ]
     }
 
 def inmuebles(nodo):
     return {
-        'Inmuebles': [
+        'Inmueble': [
             {
-                'Descripcion': item.get('Descripcion'),
-                'Ubicacion': item.get('Ubicacion'),
-                'PartidaRegistral': item.get('PartidaRegistral'),
-                'FichaTomo': item.get('FichaTomo'),
-                'AreaTerreno': item.get('AreaTerreno'),
-                'AreaConstruida': item.get('AreaConstruida'),
-                'FechaAdquisicion': item.get('FechaAdquisicion'),
-                'Moneda': item.get('Moneda'),
-                'Monto': item.get('Monto'),
-                'EntidadFinanciera': item.get('EntidadFinanciera'),
-                'Hipoteca': item.get('Hipoteca')
-            } for item in nodo.get('Inmuebles', [])
+                'Tipo': text_fix(item.get('Tipo')),
+                'Caracteristica': text_fix(item.get('Caracteristica')),
+                'MontoTasacion': float_fix(item.get('MontoTasacion')),
+                'MontoBase': float_fix(item.get('MontoBase'))
+            } for item in nodo.get('Inmueble', [])
         ]
     }
 
 def mercaderias(nodo):
     return {
-        'Mercaderias': [
+        'Mercaderia': [
             {
-                'Descripcion': item.get('Descripcion'),
-                'Cantidad': item.get('Cantidad'),
-                'UnidadMedida': item.get('UnidadMedida'),
-                'ValorUnitario': item.get('ValorUnitario'),
-                'Caracteristicas': item.get('Caracteristicas')
-            } for item in nodo.get('Mercaderias', [])
+                'Tipo': text_fix(item.get('Tipo')),
+                'Caracteristica': text_fix(item.get('Caracteristica')),
+                'MontoTasacion': float_fix(item.get('MontoTasacion')),
+                'MontoBase': float_fix(item.get('MontoBase'))
+            } for item in nodo.get('Mercaderia', [])
         ]
     }
 
-def sociedades(nodo):
+def liquidadores(nodo):
     return {
-        'Sociedades': [
+        'Liquidador': [
             {
-                'Nombre': item.get('Nombre'),
-                'RUC': item.get('RUC'),
-                'TipoSociedad': item.get('TipoSociedad'),
-                'FechaInicio': item.get('FechaInicio'),
-                'FechaFin': item.get('FechaFin')
-            } for item in nodo.get('Sociedades', [])
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'Nombres': text_fix(item.get('Nombres'))
+            } for item in nodo.get('Liquidador', [])
         ]
     }
 
-def documento_identidad(nodo):
+def empresas(nodo):
     return {
-        'TipoDocumento': nodo.get('TipoDocumento'),
-        'NumeroDocumento': nodo.get('NumeroDocumento'),
-        'PaisExpedicion': nodo.get('PaisExpedicion'),
-        'FechaExpedicion': nodo.get('FechaExpedicion'),
-        'FechaVencimiento': nodo.get('FechaVencimiento')
+        'Empresa': [
+            {
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'Nombres': text_fix(item.get('Nombres'))
+            } for item in nodo.get('Empresa', [])
+        ]
     }
 
-if __name__ == "__main__":
-    try:
-        payload = {
-            'applicants': [
-                {
-                    'personalInformation': {
-                        'name': 'Juan',
-                        'lastName': 'Perez',
-                        'motherLastName': 'Gomez',
-                        'documentType': 'DNI',
-                        'documentNumber': '12345678',
-                        'country': 'PE',
-                        'expirationDate': '2024-12-31'
-                    },
-                    'companies': [
-                        {
-                            'businessName': 'Empresa1',
-                            'ruc': '20123456789',
-                            'companyType': 'Sociedad Anonima',
-                            'startDate': '2010-01-01',
-                            'endDate': '2023-12-31'
-                        },
-                        {
-                            'businessName': 'Empresa2',
-                            'ruc': '20456789123',
-                            'companyType': 'Sociedad Comercial de Responsabilidad Limitada',
-                            'startDate': '2015-06-01',
-                            'endDate': '2023-12-31'
-                        }
-                    ]
-                },
-                {
-                    'personalInformation': {
-                        'name': 'Maria',
-                        'lastName': 'Lopez',
-                        'motherLastName': 'Garcia',
-                        'documentType': 'DNI',
-                        'documentNumber': '87654321',
-                        'country': 'PE',
-                        'expirationDate': '2023-10-15'
-                    },
-                    'companies': [
-                        {
-                            'businessName': 'Empresa3',
-                            'ruc': '20987654321',
-                            'companyType': 'Sociedad Anonima Cerrada',
-                            'startDate': '2017-03-20',
-                            'endDate': '2023-12-31'
-                        }
-                    ]
-                }
-            ]
-        }
-
-        import json
-
-        with open('test.json', 'w') as f:
-            json.dump(payload, f, indent=2)
-
-        with open('test.json') as f:
-            data = json.load(f)
-
-        resultado = [
+def entidades_judiciales(nodo):
+    return {
+        'EntidadJudicial': [
             {
-                'EntidadesJudiciales': entidades_judiciales(data)
-            },
-            {
-                'Disolucion': disoluciones(data)
-            },
-            {
-                'CambiosCapital': cambios_capital(data)
-            },
-            {
-                'AvisoQuiebra': avisos_quiebra(data)
-            },
-            {
-                'Convocatoria': convocatorias(data)
-            },
-            {
-                'Escision': escision_patrimonio(data)
-            },
-            {
-                'Fusion': fusion_sociedades(data)
-            },
-            {
-                'RemateWarrant': remates_warrants(data)
-            }
+                'TipoDocumento': text_fix(item.get('TipoDocumento')),
+                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
+                'Nombres': text_fix(item.get('Nombres')),
+                'Tipo': text_fix(item.get('Tipo'))
+            } for item in nodo.get('EntidadJudicial', [])
         ]
+    }
 
-        with open('resultado.json', 'w') as f:
-            json.dump(resultado, f, indent=2)
-
-        print('Proceso terminado correctamente.')
-
-    except Exception as e:
-        print(f'Error: {e}')
+def convocatorias(nodo):
+    return {
+        'Convocatoria': [
+            {
+                'Motivo': text_fix(item.get('Motivo')),
+                'Numero': text_fix(item.get('Numero')),
+                'FechaComunicado': text_fix(item.get('FechaComunicado')),
+                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
+                'FechaJunta': text_fix(item.get('FechaJunta')),
+                'HoraJunta': text_fix(item.get('HoraJunta')),
+                'Direccion': text_fix(item.get('Direccion')),
+                'Ubigeo': text_fix(item.get('Ubigeo'))
+            } for item in nodo.get('Convocatoria', [])
+        ]
+    }
