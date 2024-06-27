@@ -19,8 +19,8 @@ def main(payload):
     tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
     formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
 
-    # Código modulo -> Persona Natural = 1 / Persona Jurídica = 2
-    codigo_modulo = 222 if tipoPersona == 1 else 333
+    # Código modulo -> Persona Natural = 1
+    codigo_modulo = 444 if tipoPersona == 1 else None
 
     try:
         # Captura respuesta API-DSS
@@ -30,8 +30,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'SISTEMA FINANCIERO'
-        target = 'SistemaFinanciero'
+        nombre = 'SCORE PREDICTIVO CON VARIABLES (PN)'
+        target = 'ResumenScoreRP3'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -51,136 +51,35 @@ def main(payload):
     ################### Variables ###################
     #################################################
 
-    def semaforo(nodo):
+    def principales_variables(nodo):
         return {
-            'periodo': text_fix(nodo.get('periodo')),
-            'NoTieneImpagos': bool(nodo.get('NoTieneImpagos')),
-            'TieneDeudasAtrasadas': bool(nodo.get('TieneDeudasAtrasadas')),
-            'TieneDeudasImpagasInfocorp': bool(nodo.get('TieneDeudasImpagasInfocorp')),
-            'InformacionNoDisponible': bool(nodo.get('InformacionNoDisponible')),
-            'DiasAtraso': int_fix(nodo.get('DiasAtraso'))
-        }
-
-    def resumen_comportamiento_pago(nodo):
-        return {
-            'Semaforo': [semaforo(item) for item in nodo.get('Semaforo', [])]
-        }
-
-    def deuda_historica(nodo):
-        return {
-            'periodo': text_fix(nodo.get('periodo')),
-            'Calificacion': text_fix(nodo.get('Calificacion')),
-            'Porcentaje': text_fix(nodo.get('Porcentaje')),
-            'NroEntidades': int_fix(nodo.get('NroEntidades')),
-            'DeudaVigente': float_fix(nodo.get('DeudaVigente')),
-            'DeudaAtrasada': float_fix(nodo.get('DeudaAtrasada')),
-            'DeudaVencida': float_fix(nodo.get('DeudaVencida')),
-            'DeudaRefinanciada': float_fix(nodo.get('DeudaRefinanciada')),
-            'DeudaReestructurada': float_fix(nodo.get('DeudaReestructurada')),
-            'DeudaJudicial': float_fix(nodo.get('DeudaJudicial')),
-            'DeudaCastigada': float_fix(nodo.get('DeudaCastigada')),
-            'DeudaTotal': float_fix(nodo.get('DeudaTotal')),
-            'DiasAtraso': int_fix(nodo.get('DiasAtraso'))
-        }
-
-    def deudas_historicas(nodo):
-        return {
-            'Deuda': [deuda_historica(item) for item in nodo.get('Deuda', [])]
-        }
-
-    def producto_deuda(nodo):
-        return {
-            'Tipo': text_fix(nodo.get('Tipo')),
-            'Descripcion': text_fix(nodo.get('Descripcion')),
-            'Monto': float_fix(nodo.get('Monto')),
-            'DiasAtraso': int_fix(nodo.get('DiasAtraso'))
-        }
-
-    def deuda_ultimo_periodo(nodo):
-        return {
-            'Entidad': text_fix(nodo.get('Entidad')),
-            'SistemaFinanciero': text_fix(nodo.get('SistemaFinanciero')),
-            'Calificacion': text_fix(nodo.get('Calificacion')),
-            'MontoTotal': float_fix(nodo.get('MontoTotal')),
-            'Productos': {
-                'Producto': [producto_deuda(item) for item in nodo.get('Productos', {}).get('Producto', [])]
+            'PresentaInformacionSFR': {
+                'Variable': text_fix(nodo.get('PresentaInformacionSFR', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('PresentaInformacionSFR', {}).get('Valor'))
+            },
+            'PresentaDeudas': {
+                'Variable': text_fix(nodo.get('PresentaDeudas', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('PresentaDeudas', {}).get('Valor'))
+            },
+            'InformacionReportadaInfocorp': {
+                'Variable': text_fix(nodo.get('InformacionReportadaInfocorp', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('InformacionReportadaInfocorp', {}).get('Valor'))
+            },
+            'MalComportamientoCrediticio': {
+                'Variable': text_fix(nodo.get('MalComportamientoCrediticio', {}).get('Variable')),
+                'Valor': text_fix(nodo.get('MalComportamientoCrediticio', {}).get('Valor'))
             }
         }
 
-    def deudas_ultimo_periodo(nodo):
+    def resumen_score_rp3(nodo):
         return {
-            'periodo': text_fix(nodo.get('periodo')),
-            'Deuda': [deuda_ultimo_periodo(item) for item in nodo.get('Deuda', [])]
+            'Puntaje': int_fix(nodo.get('Puntaje')),
+            'NivelRiesgo': text_fix(nodo.get('NivelRiesgo')),
+            'Conclusion': text_fix(nodo.get('Conclusion')),
+            'PrincipalesVariables': principales_variables(nodo.get('PrincipalesVariables', {}))
         }
 
-    def entidad(nodo):
-        return {
-            'Codigo': text_fix(nodo.get('Codigo')),
-            'Nombre': text_fix(nodo.get('Nombre')),
-            'Calificacion': text_fix(nodo.get('Calificacion')),
-            'CreditosVigentes': float_fix(nodo.get('CreditosVigentes')),
-            'CreditosRefinanciados': float_fix(nodo.get('CreditosRefinanciados')),
-            'CreditosVencidos': float_fix(nodo.get('CreditosVencidos')),
-            'CreditosJudicial': float_fix(nodo.get('CreditosJudicial'))
-        }
-
-    def detalle_entidades(nodo):
-        return {
-            'periodo': text_fix(nodo.get('periodo')),
-            'Entidad': [entidad(item) for item in nodo.get('Entidad', [])]
-        }
-
-    def calificaciones(nodo):
-        return {
-            'NOR': float_fix(nodo.get('NOR')),
-            'CPP': float_fix(nodo.get('CPP')),
-            'DEF': float_fix(nodo.get('DEF')),
-            'DUD': float_fix(nodo.get('DUD')),
-            'PER': float_fix(nodo.get('PER'))
-        }
-
-    def deuda(nodo):
-        return {
-            'CodigoCuenta': text_fix(nodo.get('CodigoCuenta')),
-            'NombreCuenta': text_fix(nodo.get('NombreCuenta')),
-            'DescripcionCuenta': text_fix(nodo.get('DescripcionCuenta')),
-            'CodigoEntidad': text_fix(nodo.get('CodigoEntidad')),
-            'NombreEntidad': text_fix(nodo.get('NombreEntidad')),
-            'Calificacion': float_fix(nodo.get('Calificacion')),
-            'Monto': float_fix(nodo.get('Monto'))
-        }
-
-    def periodo(nodo):
-        return {
-            'valor': text_fix(nodo.get('valor')),
-            'flag': bool(nodo.get('flag')),
-            'NroEntidades': int_fix(nodo.get('NroEntidades')),
-            'Calificaciones': calificaciones(nodo.get('Calificaciones', {})),
-            'Deudas': {
-                'Deuda': [deuda(item) for item in nodo.get('Deudas', {}).get('Deuda', [])]
-            }
-        }
-
-    def rcc(nodo):
-        return {
-            'DetalleEntidades': detalle_entidades(nodo.get('DetalleEntidades', {})),
-            'Periodos': {
-                'Periodo': [periodo(item) for item in nodo.get('Periodos', {}).get('Periodo', [])]
-            }
-        }
-
-    def sistema_financiero(nodo):
-        return {
-            'ResumenComportamientoPago': resumen_comportamiento_pago(nodo.get('ResumenComportamientoPago', {})),
-            'DeudasHistoricas': deudas_historicas(nodo.get('DeudasHistoricas', {})),
-            'DeudasUltimoPeriodo': deudas_ultimo_periodo(nodo.get('DeudasUltimoPeriodo', {})),
-            'RCC': rcc(nodo.get('RCC', {})),
-            'Rectificaciones': nodo.get('Rectificaciones', {}),
-            'Avalistas': nodo.get('Avalistas', {}),
-            'Microfinanzas': nodo.get('Microfinanzas', {})
-        }
-
-    data_output = sistema_financiero(nodo)
+    data_output = resumen_score_rp3(nodo)
 
     # Limpiar objetos vacíos
     def clean_data(data):
@@ -204,7 +103,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "SistemaFinanciero": data_output
+                    "ResumenScoreRP3": data_output
                 }
             }
         except Exception as e:
@@ -215,18 +114,18 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "SistemaFinanciero": {}
+                    "ResumenScoreRP3": {}
                 }
             }
     else:
         try:
             final_out = {
-                "SistemaFinanciero": {
+                "ResumenScoreRP3": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": {
                         "flag": modulo[0].get('Data').get('flag'),
-                        "SistemaFinanciero": data_output
+                        "ResumenScoreRP3": data_output
                     }
                 }
             }
@@ -234,12 +133,12 @@ def main(payload):
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "SistemaFinanciero": {
+                "ResumenScoreRP3": {
                     "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": {
                         "flag": False,
-                        "SistemaFinanciero": {}
+                        "ResumenScoreRP3": {}
                     }
                 }
             }
