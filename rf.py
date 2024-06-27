@@ -1,3 +1,4 @@
+
 import os
 import sys
 import traceback
@@ -29,8 +30,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'RESUMEN FLAGS'
-        target = 'ResumenFlags'
+        nombre = 'OTRAS DEUDAS IMPAGAS'
+        target = 'OtrasDeudasImpagas'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -50,78 +51,46 @@ def main(payload):
     ################### Variables ###################
     #################################################
 
-    def resumen_deuda(nodo):
+    def deudas_impagas_protestadas(nodo):
+        return {
+            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
+            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+        }
+
+    def deudas_impagas_infocorp(nodo):
+        return {
+            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
+            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+        }
+
+    def deudas_impagas_sunat(nodo):
+        return {
+            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
+            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+        }
+
+    def deudas_impagas_previsional(nodo):
+        return {
+            'MontoEnSoles': float_fix(nodo.get('MontoEnSoles')),
+            'MontoEnDolares': float_fix(nodo.get('MontoEnDolares'))
+        }
+
+    def odi_detalle(nodo):
         return {
             'Periodo': text_fix(nodo.get('Periodo')),
-            'DeudaTotal': float_fix(nodo.get('DeudaTotal')),
-            'DeudaDirecta': float_fix(nodo.get('DeudaDirecta')),
-            'DeudaIndirecta': float_fix(nodo.get('DeudaIndirecta')),
-            'PorcentajeDeudaNormal': float_fix(nodo.get('PorcentajeDeudaNormal')),
-            'PorcentajeDeudaPotencial': float_fix(nodo.get('PorcentajeDeudaPotencial')),
-            'PorcentajeDeudaDeficiente': float_fix(nodo.get('PorcentajeDeudaDeficiente')),
-            'PorcentajeDeudaEnRiesgo': float_fix(nodo.get('PorcentajeDeudaEnRiesgo')),
-            'PorcentajeDeudaPerdida': float_fix(nodo.get('PorcentajeDeudaPerdida')),
-            'Variacion': float_fix(nodo.get('Variacion'))
+            'Riesgo': text_fix(nodo.get('Riesgo')),
+            'DeudasImpagasProtestadas': deudas_impagas_protestadas(nodo.get('DeudasImpagasProtestadas', {})),
+            'DeudasImpagasInfocorp': deudas_impagas_infocorp(nodo.get('DeudasImpagasInfocorp', {})),
+            'DeudasImpagasSunat': deudas_impagas_sunat(nodo.get('DeudasImpagasSunat', {})),
+            'DeudasImpagasPrevisional': deudas_impagas_previsional(nodo.get('DeudasImpagasPrevisional', {}))
         }
 
-    def resumen_score_historico(nodo):
+    def otras_deudas_impagas(nodo):
         return {
-            'ScoreActual': {
-                'Periodo': text_fix(nodo.get('ScoreActual', {}).get('Periodo')),
-                'Riesgo': text_fix(nodo.get('ScoreActual', {}).get('Riesgo')),
-                'MotivoSinScore': text_fix(nodo.get('ScoreActual', {}).get('MotivoSinScore'))
-            },
-            'ScoreAnterior': {
-                'Periodo': text_fix(nodo.get('ScoreAnterior', {}).get('Periodo')),
-                'Riesgo': text_fix(nodo.get('ScoreAnterior', {}).get('Riesgo')),
-                'MotivoSinScore': text_fix(nodo.get('ScoreAnterior', {}).get('MotivoSinScore'))
-            },
-            'ScoreHace12Meses': {
-                'Periodo': text_fix(nodo.get('ScoreHace12Meses', {}).get('Periodo')),
-                'Riesgo': text_fix(nodo.get('ScoreHace12Meses', {}).get('Riesgo')),
-                'MotivoSinScore': text_fix(nodo.get('ScoreHace12Meses', {}).get('MotivoSinScore'))
-            }
+            'ODIDetalle': [odi_detalle(item) for item in nodo.get('ODIDetalle', [])]
         }
 
-    def resumen_bloque_flags(nodo):
-        return {
-            'TarjetaCredito': text_fix(nodo.get('TarjetaCredito')),
-            'LineaDeCredito': text_fix(nodo.get('LineaDeCredito')),
-            'CreditoHipotecario': text_fix(nodo.get('CreditoHipotecario')),
-            'BuenPagadorDeServicios': text_fix(nodo.get('BuenPagadorDeServicios')),
-            'EstaEnInfocorp': text_fix(nodo.get('EstaEnInfocorp')),
-            'AvalAvalado': text_fix(nodo.get('AvalAvalado')),
-            'RepresentanteLegal': text_fix(nodo.get('RepresentanteLegal')),
-            'GastoMensualEstimado': float_fix(nodo.get('GastoMensualEstimado')),
-            'PosibleRestringido': text_fix(nodo.get('PosibleRestringido')),
-            'TieneAuto': text_fix(nodo.get('TieneAuto')),
-            'EntidadesQueConsultaron': int_fix(nodo.get('EntidadesQueConsultaron')),
-            'Homonimos': text_fix(nodo.get('Homonimos')),
-            'ComercioExterior': text_fix(nodo.get('ComercioExterior')),
-            'DeudaPrevisional': text_fix(nodo.get('DeudaPrevisional')),
-            'AlertaPep': text_fix(nodo.get('AlertaPep')),
-            'AlertaRedam': text_fix(nodo.get('AlertaRedam')),
-            'ReactivaPeru': text_fix(nodo.get('ReactivaPeru')),
-            'ReactivaPeruInfo': {
-                'Fecha': text_fix(nodo.get('ReactivaPeruInfo', {}).get('Fecha')),
-                'Monto': text_fix(nodo.get('ReactivaPeruInfo', {}).get('Monto'))
-            }
-        }
-
-    def resumen_flags(nodo):
-        return {
-            'ResumenFlags': {
-                'ResumenComportamiento': {
-                    'TipoDocumento': text_fix(nodo.get('ResumenComportamiento', {}).get('TipoDocumento')),
-                    'NumeroDocumento': text_fix(nodo.get('ResumenComportamiento', {}).get('NumeroDocumento')),
-                    'ResumenDeuda': resumen_deuda(nodo.get('ResumenComportamiento', {}).get('ResumenDeuda', {})),
-                    'ResumenScoreHistorico': resumen_score_historico(nodo.get('ResumenComportamiento', {}).get('ResumenScoreHistorico', {}))
-                },
-                'ResumenBloqueFlags': resumen_bloque_flags(nodo.get('ResumenBloqueFlags', {}))
-            }
-        }
-
-    data_output = resumen_flags(nodo)
+    data_output = otras_deudas_impagas(nodo)
 
     # Limpiar objetos vacíos
     def clean_data(data):
@@ -145,7 +114,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "ResumenFlags": data_output
+                    "OtrasDeudasImpagas": data_output
                 }
             }
         except Exception as e:
@@ -156,18 +125,18 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "ResumenFlags": {}
+                    "OtrasDeudasImpagas": {}
                 }
             }
     else:
         try:
             final_out = {
-                "ResumenFlags": {
+                "OtrasDeudasImpagas": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": {
                         "flag": modulo[0].get('Data').get('flag'),
-                        "ResumenFlags": data_output
+                        "OtrasDeudasImpagas": data_output
                     }
                 }
             }
@@ -175,12 +144,12 @@ def main(payload):
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "ResumenFlags": {
+                "OtrasDeudasImpagas": {
                     "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": {
                         "flag": False,
-                        "ResumenFlags": {}
+                        "OtrasDeudasImpagas": {}
                     }
                 }
             }
