@@ -18,8 +18,8 @@ def main(payload):
     tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
     formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
 
-    # Código modulo -> Persona Jurídica = 1
-    codigo_modulo = 622
+    # Código modulo -> Persona Natural o Persona Jurídica
+    codigo_modulo = 450 if tipoPersona == 2 else 451
 
     try:
         # Captura respuesta API-DSS
@@ -29,8 +29,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'SCORE PREDICTIVO CON VARIABLES (PJ)'
-        target = 'ResumenScore'
+        nombre = 'REPRESENTANTES LEGALES (CON SCORE)'
+        target = 'RepresentantesLegales'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -50,39 +50,38 @@ def main(payload):
     ################### Variables ###################
     #################################################
 
-    def principales_variables(nodo):
+    def representantes_data(nodo):
         return {
-            'PeorRating': {
-                'Variable': text_fix(nodo.get('PeorRating', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('PeorRating', {}).get('Valor'))
+            'TipoDocumento': text_fix(nodo.get('TipoDocumento')),
+            'NumeroDocumento': text_fix(nodo.get('NumeroDocumento')),
+            'Nombre': text_fix(nodo.get('Nombre')),
+            'ScoreHistoricos': {
+                'ScoreActual': {
+                    'Periodo': text_fix(nodo.get('ScoreHistoricos', {}).get('ScoreActual', {}).get('Periodo')),
+                    'Riesgo': text_fix(nodo.get('ScoreHistoricos', {}).get('ScoreActual', {}).get('Riesgo'))
+                },
+                'ScoreAnterior': {
+                    'Periodo': text_fix(nodo.get('ScoreHistoricos', {}).get('ScoreAnterior', {}).get('Periodo')),
+                    'Riesgo': text_fix(nodo.get('ScoreHistoricos', {}).get('ScoreAnterior', {}).get('Riesgo'))
+                },
+                'ScoreHace12Meses': {
+                    'Periodo': text_fix(nodo.get('ScoreHistoricos', {}).get('ScoreHace12Meses', {}).get('Periodo')),
+                    'Riesgo': text_fix(nodo.get('ScoreHistoricos', {}).get('ScoreHace12Meses', {}).get('Riesgo'))
+                }
             },
-            'PresentaDeudas': {
-                'Variable': text_fix(nodo.get('PresentaDeudas', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('PresentaDeudas', {}).get('Valor'))
-            },
-            'DeudasAtrasadas': {
-                'Variable': text_fix(nodo.get('DeudasAtrasadas', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('DeudasAtrasadas', {}).get('Valor'))
-            },
-            'DeudasNegativasReportadasSunat': {
-                'Variable': text_fix(nodo.get('DeudasNegativasReportadasSunat', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('DeudasNegativasReportadasSunat', {}).get('Valor'))
-            },
-            'ProtestosNoAclarados': {
-                'Variable': text_fix(nodo.get('ProtestosNoAclarados', {}).get('Variable')),
-                'Valor': text_fix(nodo.get('ProtestosNoAclarados', {}).get('Valor'))
-            }
+            'FechaInicioCargo': text_fix(nodo.get('FechaInicioCargo')),
+            'Cargo': text_fix(nodo.get('Cargo'))
         }
 
-    def resumen_score(nodo):
+    def representantes_legales(nodo):
         return {
-            'Puntaje': int_fix(nodo.get('Puntaje')),
-            'NivelRiesgo': text_fix(nodo.get('NivelRiesgo')),
-            'Conclusion': text_fix(nodo.get('Conclusion')),
-            'PrincipalesVariables': principales_variables(nodo.get('PrincipalesVariables', {}))
+            'RepresentadosPor': {
+                'RepresentadoPor': representantes_data(nodo.get('RepresentadosPor', {}).get('RepresentadoPor'))
+            },
+            'RepresentantesDe': representantes_data(nodo.get('RepresentantesDe'))
         }
 
-    data_output = resumen_score(nodo)
+    data_output = representantes_legales(nodo)
 
     # Limpiar objetos vacíos
     def clean_data(data):
@@ -106,7 +105,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "ResumenScore": data_output
+                    "RepresentantesLegales": data_output
                 }
             }
         except Exception as e:
@@ -117,18 +116,18 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "ResumenScore": {}
+                    "RepresentantesLegales": {}
                 }
             }
     else:
         try:
             final_out = {
-                "ResumenScore": {
+                "RepresentantesLegales": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
                     "Data": {
                         "flag": modulo[0].get('Data').get('flag'),
-                        "ResumenScore": data_output
+                        "RepresentantesLegales": data_output
                     }
                 }
             }
@@ -136,12 +135,12 @@ def main(payload):
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "ResumenScore": {
+                "RepresentantesLegales": {
                     "Codigo": codigo,
                     "Nombre": nombre,
                     "Data": {
                         "flag": False,
-                        "ResumenScore": {}
+                        "RepresentantesLegales": {}
                     }
                 }
             }
