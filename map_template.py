@@ -1,55 +1,14 @@
-import json
-import os
-import traceback
-from datetime import datetime
-
-def generate_dynamic_functions(fields, parent_key=""):
-    functions = ""
-    if isinstance(fields, dict):
-        for key, value in fields.items():
-            current_key = f"{parent_key}_{key}" if parent_key else key
-            if isinstance(value, dict):
-                functions += generate_dynamic_functions(value, current_key)
-            elif isinstance(value, list) and isinstance(value[0], dict):
-                function_name = f"process_{current_key}"
-                functions += f"\n    def {function_name}(data):\n"
-                functions += f"        return [\n"
-                for sub_key in value[0].keys():
-                    functions += f"            {{'{sub_key}': text_fix(ob.get('{sub_key}'))}} for ob in data\n"
-                functions += f"        ]\n"
-            else:
-                function_name = f"process_{current_key}"
-                functions += f"\n    def {function_name}(data):\n"
-                functions += f"        return text_fix(data.get('{key}'))\n"
-    return functions
-
-def build_field_mappings(fields):
-    mappings = {}
-    if isinstance(fields, dict):
-        for key, value in fields.items():
-            if isinstance(value, dict):
-                mappings[key] = build_field_mappings(value)
-            elif isinstance(value, list) and isinstance(value[0], dict):
-                mappings[key] = [build_field_mappings(value[0])]
-            else:
-                mappings[key] = ""
-    return mappings
-
-def generate_script(module, codigo_persona, codigo_empresa, target_name, fields, tipo_documento):
-    dynamic_functions = generate_dynamic_functions(fields)
-    field_mappings = build_field_mappings(fields)
-
-    script_template = f"""
 # ==================================
-# Modulo: {module}
-# Autor: Generado automáticamente
-# Fecha: {datetime.now().strftime('%d-%m-%Y')}
+# Modulo: RESUMEN FLAGS
+# Autor: José Reyes         
+# Correo: jose.reyes3@equifax.com
+# Fecha: 27-06-2024
 # ==================================
 
 import os
 import sys
 import traceback
-from pe_utils import text_fix, get_value, xsi_to_null
+from pe_utils import int_fix, float_fix, text_fix, get_value, xsi_to_null
 
 def main(payload):
 
@@ -62,123 +21,200 @@ def main(payload):
     except:
         primaryConsumer = payload.get('applicants').get('primaryConsumer')
 
+    # Captura variables entrada
+    tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
+    formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
+
+    # Código modulo -> Persona Natural = 1 / Persona Jurídica = 2
+    codigo_modulo = 222 if tipoPersona == 1 else 333
+
     try:
         # Captura respuesta API-DSS
         payload = primaryConsumer.get('equifax-pe-middleware')
-        
+
         # Reemplaza por null tag[xsi] presentes en payload
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre  = '{module}'
-        target  = '{target_name}'
-        codigo  = {codigo_persona if tipo_documento == 1 else codigo_empresa}
+        nombre = 'RESUMEN FLAGS'
+        target = 'ResumenFlags'
+        codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
-        modulo  = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]  
+        modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
 
         # Filtra por target si existen múltiples módulos con el mismo nombre
-        if len(modulo) > 1: 
+        if len(modulo) > 1:
             modulo_filtrado = [modulo_filtrado for modulo_filtrado in modulo if modulo_filtrado.get('Data').get(target)]
             modulo = modulo_filtrado if len(modulo_filtrado) == 1 else modulo
 
+        # Verificar si hay datos disponibles en el módulo
+        if not modulo:
+            raise ValueError("No hay datos disponibles en el módulo")
+
         # Data del modulo
         nodo = modulo[0].get('Data').get(target)
-    except:
+    except Exception as e:
+        print(f"Error procesando los datos de entrada: {e}")
         traceback.print_exc()
 
     #################################################
-    ################### Functions ###################
+    ################### Variables ###################
     #################################################
 
-    {dynamic_functions}
+    def resumen_deuda(nodo):
+        return {
+            'Periodo': text_fix(nodo.get('Periodo')),
+            'DeudaTotal': float_fix(nodo.get('DeudaTotal')),
+            'DeudaDirecta': float_fix(nodo.get('DeudaDirecta')),
+            'DeudaIndirecta': float_fix(nodo.get('DeudaIndirecta')),
+            'PorcentajeDeudaNormal': float_fix(nodo.get('PorcentajeDeudaNormal')),
+            'PorcentajeDeudaPotencial': float_fix(nodo.get('PorcentajeDeudaPotencial')),
+            'PorcentajeDeudaDeficiente': float_fix(nodo.get('PorcentajeDeudaDeficiente')),
+            'PorcentajeDeudaEnRiesgo': float_fix(nodo.get('PorcentajeDeudaEnRiesgo')),
+            'PorcentajeDeudaPerdida': float_fix(nodo.get('PorcentajeDeudaPerdida')),
+            'Variacion': float_fix(nodo.get('Variacion'))
+        }
 
-    #################################################
-    ################# Data Processing ###############
-    #################################################
+    def resumen_score_historico(nodo):
+        return {
+            'ScoreActual': {
+                'Periodo': text_fix(nodo.get('ScoreActual', {}).get('Periodo')),
+                'Riesgo': text_fix(nodo.get('ScoreActual', {}).get('Riesgo')),
+                'MotivoSinScore': text_fix(nodo.get('ScoreActual', {}).get('MotivoSinScore'))
+            },
+            'ScoreAnterior': {
+                'Periodo': text_fix(nodo.get('ScoreAnterior', {}).get('Periodo')),
+                'Riesgo': text_fix(nodo.get('ScoreAnterior', {}).get('Riesgo')),
+                'MotivoSinScore': text_fix(nodo.get('ScoreAnterior', {}).get('MotivoSinScore'))
+            },
+            'ScoreHace12Meses': {
+                'Periodo': text_fix(nodo.get('ScoreHace12Meses', {}).get('Periodo')),
+                'Riesgo': text_fix(nodo.get('ScoreHace12Meses', {}).get('Riesgo')),
+                'MotivoSinScore': text_fix(nodo.get('ScoreHace12Meses', {}).get('MotivoSinScore'))
+            }
+        }
 
-    def process_data(data, field_mappings):
-        result = {{}}
-        for key, value in field_mappings.items():
-            if isinstance(value, dict):
-                result[key] = process_data(data.get(key, {{}}), value)
-            elif isinstance(value, list):
-                result[key] = [process_data(item, value[0]) for item in data.get(key, [])]
-            else:
-                function_name = f"process_{target_name.lower()}_{key}"
-                if function_name in globals():
-                    result[key] = globals()[function_name](data)
-                else:
-                    result[key] = text_fix(data.get(key))
-        return result
+    def resumen_bloque_flags(nodo):
+        return {
+            'TarjetaCredito': text_fix(nodo.get('TarjetaCredito')),
+            'LineaDeCredito': text_fix(nodo.get('LineaDeCredito')),
+            'CreditoHipotecario': text_fix(nodo.get('CreditoHipotecario')),
+            'BuenPagadorDeServicios': text_fix(nodo.get('BuenPagadorDeServicios')),
+            'EstaEnInfocorp': text_fix(nodo.get('EstaEnInfocorp')),
+            'AvalAvalado': text_fix(nodo.get('AvalAvalado')),
+            'RepresentanteLegal': text_fix(nodo.get('RepresentanteLegal')),
+            'GastoMensualEstimado': float_fix(nodo.get('GastoMensualEstimado')),
+            'PosibleRestringido': text_fix(nodo.get('PosibleRestringido')),
+            'TieneAuto': text_fix(nodo.get('TieneAuto')),
+            'EntidadesQueConsultaron': int_fix(nodo.get('EntidadesQueConsultaron')),
+            'Homonimos': text_fix(nodo.get('Homonimos')),
+            'ComercioExterior': text_fix(nodo.get('ComercioExterior')),
+            'DeudaPrevisional': text_fix(nodo.get('DeudaPrevisional')),
+            'AlertaPep': text_fix(nodo.get('AlertaPep')),
+            'AlertaRedam': text_fix(nodo.get('AlertaRedam')),
+            'ReactivaPeru': text_fix(nodo.get('ReactivaPeru')),
+            'ReactivaPeruInfo': {
+                'Fecha': text_fix(nodo.get('ReactivaPeruInfo', {}).get('Fecha')),
+                'Monto': text_fix(nodo.get('ReactivaPeruInfo', {}).get('Monto'))
+            }
+        }
+
+    def resumen_flags(nodo):
+        return {
+            'ResumenFlags': {
+                'ResumenComportamiento': {
+                    'TipoDocumento': text_fix(nodo.get('ResumenComportamiento', {}).get('TipoDocumento')),
+                    'NumeroDocumento': text_fix(nodo.get('ResumenComportamiento', {}).get('NumeroDocumento')),
+                    'ResumenDeuda': resumen_deuda(nodo.get('ResumenComportamiento', {}).get('ResumenDeuda', {})),
+                    'ResumenScoreHistorico': resumen_score_historico(nodo.get('ResumenComportamiento', {}).get('ResumenScoreHistorico', {}))
+                },
+                'ResumenBloqueFlags': resumen_bloque_flags(nodo.get('ResumenBloqueFlags', {}))
+            }
+        }
+
+    data_output = resumen_flags(nodo)
+
+    # Limpiar objetos vacíos
+    def clean_data(data):
+        if isinstance(data, dict):
+            return {k: clean_data(v) for k, v in data.items() if v not in [None, "xsi:nil", "xmlns:xsi"]}
+        elif isinstance(data, list):
+            return [clean_data(v) for v in data if v not in [None, "xsi:nil", "xmlns:xsi"]]
+        else:
+            return data
+
+    data_output = clean_data(data_output)
 
     #################################################
     ################## Set Output ###################
     #################################################
 
-    try:
-        final_out = {{
-            "Codigo": modulo[0].get('Codigo'),
-            "Nombre": modulo[0].get('Nombre'),
-            "Data": {{
-                "flag": modulo[0].get('Data').get('flag'),
-                "{target_name}": process_data(nodo, {json.dumps(field_mappings, indent=4)})
-            }}
-        }}
-    except:
-        final_out = {{
-            "Codigo": codigo, 
-            "Nombre": nombre, 
-            "Data": {{
-                "flag": False
-            }}
-        }}
+    if not formato_salida:
+        try:
+            if nodo:
+                final_out = {
+                    "Codigo": modulo[0].get('Codigo'),
+                    "Nombre": modulo[0].get('Nombre'),
+                    "Data": {
+                        "flag": True,
+                        "ResumenFlags": data_output
+                    }
+                }
+            else:
+                final_out = {
+                    "Codigo": codigo,
+                    "Nombre": nombre,
+                    "Data": {
+                        "flag": False,
+                        "ResumenFlags": {}
+                    }
+                }
+        except Exception as e:
+            print(f"Error generando la salida final (formato_salida=False): {e}")
+            traceback.print_exc()
+            final_out = {
+                "Codigo": codigo,
+                "Nombre": nombre,
+                "Data": {
+                    "flag": False,
+                    "ResumenFlags": {}
+                }
+            }
+    else:
+        try:
+            if nodo:
+                final_out = {
+                    "ResumenFlags": {
+                        "Codigo": modulo[0].get('Codigo'),
+                        "Nombre": modulo[0].get('Nombre'),
+                        "Data": {
+                            "flag": True,
+                            "ResumenFlags": data_output
+                        }
+                    }
+                }
+            else:
+                final_out = {
+                    "ResumenFlags": {
+                        "Codigo": codigo,
+                        "Nombre": nombre,
+                        "Data": {
+                            "flag": False,
+                            "ResumenFlags": {}
+                        }
+                    }
+                }
+        except Exception as e:
+            print(f"Error generando la salida final (formato_salida=True): {e}")
+            traceback.print_exc()
+            final_out = {
+                "ResumenFlags": {
+                    "Codigo": codigo,
+                    "Nombre": nombre,
+                    "Data": {
+                        "flag": False,
+                        "ResumenFlags": {}
+                    }
+                }
+            }
     return final_out
-    """
-
-    filename = f"pe_modulo_{target_name.lower()}.py"
-    os.makedirs("scripts_final", exist_ok=True)
-    filepath = os.path.join("scripts_final", filename)
-    
-    # Check if the file already exists and add a suffix if it does
-    counter = 2
-    while os.path.exists(filepath):
-        base, ext = os.path.splitext(filepath)
-        filepath = f"{base}_{counter}{ext}"
-        counter += 1
-
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(script_template)
-    print(f"Script {os.path.basename(filepath)} generado exitosamente.")
-
-def get_modules_info(json_data, module_name):
-    try:
-        module = json_data[module_name]
-        codigo_persona = module['Codigo']
-        codigo_empresa = module['Codigo']
-        target_name = next((key for key in module.get('Data').keys() if key != 'flag'), None)
-        fields = module.get('Data').get(target_name, {})
-        return codigo_persona, codigo_empresa, target_name, fields
-    except KeyError as e:
-        print(f"Error: No se encontró el módulo {module_name} en la estructura.")
-        return None, None, None, None
-
-def generate_all_scripts():
-    with open("modulos_completos.json", 'r', encoding='utf-8') as f:
-        complete_data = json.load(f)
-
-    for module_name in complete_data.keys():
-        if '_p' in module_name:
-            tipo_documento = 1
-        elif '_e' in module_name:
-            tipo_documento = 2
-        else:
-            continue
-
-        base_module_name = module_name[:-2]
-        codigo_persona, codigo_empresa, target_name, fields = get_modules_info(complete_data, module_name)
-        if target_name:
-            print(f"Generando script para el módulo: {base_module_name}")
-            generate_script(base_module_name, codigo_persona, codigo_empresa, target_name, fields, tipo_documento)
-
-if __name__ == "__main__":
-    generate_all_scripts()
