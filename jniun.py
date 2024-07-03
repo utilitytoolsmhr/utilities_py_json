@@ -1,517 +1,177 @@
-import json
-import os
-import sys
-import traceback
-from pe_utils import int_fix, float_fix, text_fix, get_value, xsi_to_null, obj_fix
+from datetime import datetime
 
-def main(payload):
-    print(payload)
+
+def int_fix(s: any, default = None):
+    """ 
+        Función que covierte un valor a un entero, en caso de que no sea un valor valido retorna un caracter vacio
+    Args:
+        s (any): Valor de tipo no especificado 
+
+    Returns:
+        _type_: int or any
+    """
     try:
-        primaryConsumer = payload.get('applicants')[0]
-    except:
-        primaryConsumer = payload.get('applicants').get('primaryConsumer')
+        return int(float(s)) 
+    except (ValueError, TypeError):
+        return s
 
-    tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
-    formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
 
-    codigo_modulo = 869 if tipoPersona == 1 else 623
+def float_fix(n: any):
+    """
+    Intenta convertir el valor n a un número de punto flotante.
+    
+    Args:
+    n: El valor que se intentará convertir a un número de punto flotante.
+    
+    Returns:
+    Un número de punto flotante que representa el valor de n si es posible convertirlo, de lo contrario devuelve n.
+    """
+    try: 
+        return float(n)
+    except: 
+        return n
 
-    try:
-        payload = primaryConsumer.get('equifax-pe-middleware')
-        xsi_to_null(payload)
 
-        nombre = 'BOLETÍN OFICIAL'
-        target = 'BoletinOficial'
-        codigo = codigo_modulo
-        modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
-        modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
+def float_round_fix(n: any, r=2):
+    """
+    Intenta convertir el valor n a un número de punto flotante con solo r decimales sin aproximar.
+    
+    Args:
+    n (any): El valor que se intentará convertir a un número de punto flotante con solo r decimales.
+    r (int): La cantidad de decimales a mantener (por defecto 2).
+    
+    Returns:
+    float: Un número de punto flotante con solo r decimales que representa el valor de n si es posible convertirlo, de lo contrario devuelve n.
+    """
+    if n:
+        try:
+            n = str(n)
+            if "." in n:     
+                integer_part, decimal_part = n.split('.')           
+                return float(integer_part + "." + decimal_part[:r])
+        except:
+            return n
+    return n
 
-        if len(modulo) > 1:
-            modulo_filtrado = [modulo_filtrado for modulo_filtrado in modulo if modulo_filtrado.get('Data').get(target)]
-            modulo = modulo_filtrado if len(modulo_filtrado) == 1 else modulo
 
-        if not modulo:
-            raise ValueError("Modulo sin datos")
+def text_fix(s: any):
+    """
+        Función que convierte un valor a String, si el valor es 'null' or 'NULL' retornará None
+    Args:
+        s (any): Valor de tipo no especificado 
 
-        nodo = modulo[0].get('Data').get(target)
-        nodo = obj_fix(nodo)
-    except Exception as e:
-        print(f"Error procesando los datos de entrada: {e}")
-        traceback.print_exc()
-        nodo = None
+    Returns:
+        _type_: str or None
+    """
+    return str(s) if s is not None and str(s).lower() != 'null' else None
 
-    #################################################
-    ################### Variables ###################
-    #################################################
-    if nodo:
-        data_output = boletinoficial(nodo)
-    else:
-        data_output = {}
+def moneda_fix(numero):
+    """
+    Funcion para formatear moneda
+    """
+    partes = str(numero).split('.')
+    entero = partes[0]
+    decimal = (partes[1] if len(partes) > 1 else '00')[:2]
+    if len(decimal) == 1:
+        decimal = decimal + '0'
+    entero = entero[::-1]
+    entero = ','.join(entero[i:i+3] for i in range(0, len(entero), 3))
+    entero = entero[::-1]
+    # return "RD$ " + entero + "." + decimal
+    return entero + "." + decimal
+    
 
-    def clean_data(data):
-        if isinstance(data, dict):
-            return {k: clean_data(v) for k, v in data.items() if v not in [None, "xsi:nil", "xmlns:xsi"]}
-        elif isinstance(data, list):
-            return [clean_data(v) for v in data if v not in [None, "xsi:nil", "xmlns:xsi"]]
+def obj_fix(obj):
+    if not isinstance(obj, dict):
+        return obj  # Si no es un objeto, lo devuelve tal cual.
+    fixed_obj = {}
+    for key, value in obj.items():
+        if isinstance(value, str):
+            fixed_obj[key] = text_fix(value)
+        elif isinstance(value, int):
+            fixed_obj[key] = int_fix(value)
+        elif isinstance(value, float):
+            fixed_obj[key] = float_fix(value)
+        elif isinstance(value, dict):
+            fixed_obj[key] = obj_fix(value)  # Recursión para objetos anidados.
         else:
-            return data
+            fixed_obj[key] = value  # Otros tipos se mantienen igual.
+    return fixed_obj
 
-    data_output = clean_data(data_output)
+#Convierte fecha a formato (01-2023) - (01-11-2023)
+def date_fix(value, separator='-'):
+    """
+    Esta función toma un valor de fecha en formato 'YYYYMM' o 'YYYYMMDD' y un separador opcional,
+    y devuelve la fecha en el formato 'DD-MM-YYYY' o 'MM-YYYY' respectivamente.
+
+    Args:
+    value (str): El valor de fecha en formato 'YYYYMM' o 'YYYYMMDD'.
+    separator (str, opcional): El separador a utilizar en el resultado. Por defecto es '-'.
+
+    Returns:
+    str: La fecha formateada en el formato especificado, si no es posible convertir retorna el valor de entrada.
+    """
+    try:
+        if len(value) == 6:
+            fecha = datetime.strptime(value, "%Y%m").strftime("%m" + separator + "%Y")
+        else:
+            fecha = datetime.strptime(value, "%Y%m%d").strftime("%d" + separator + "%m" + separator + "%Y")
+    except:
+        fecha = value
+    return fecha
 
 
-    #################################################
-    ################## Set Output ###################
-    #################################################
 
-    if not formato_salida:
-        try:
-            if nodo:
-                final_out = {
-                    "Codigo": modulo[0].get('Codigo'),
-                    "Nombre": modulo[0].get('Nombre'),
-                    "Data": {
-                        "flag": True,
-                        "ResumenFlags": data_output
-                    }
-                }
+####################### Funciones PE #######################
+
+
+def get_value(objeto, lista=False, func=None):
+    """
+    Función que procesa un objeto (diccionario o lista) de acuerdo a los parámetros proporcionados.
+
+    Parámetros:
+    objeto (dict o list): El objeto a procesar.
+    lista (bool, opcional): Indica si se debe tratar el objeto como una lista. Por defecto es False.
+    func (función, opcional): Función a aplicar al objeto procesado. Por defecto es None.
+
+    Retorna:
+    dict, list u objeto original: Dependiendo de las operaciones realizadas en función de los parámetros.
+
+    Ejemplos de uso:
+    - get_value(objeto=nodo,lista='Avalado',func=avalados) 
+    """
+    check = isinstance(objeto,dict) or isinstance(objeto,list)
+    if check:
+        if lista: #convierte trama capturada en lista a un []
+            target = objeto.get(lista)
+            if isinstance(target,list):
+                return get_value(target,False,func)
+            elif isinstance(target,dict):
+                return get_value([target],False,func) 
             else:
-                final_out = {
-                    "Codigo": codigo,
-                    "Nombre": nombre,
-                    "Data": {
-                        "flag": False,
-                        "ResumenFlags": {}
-                    }
-                }
-        except Exception as e:
-            print(f"Error generando la salida final (formato_salida=False): {e}")
-            traceback.print_exc()
-            final_out = {
-                "Codigo": codigo,
-                "Nombre": nombre,
-                "Data": {
-                    "flag": False,
-                    "ResumenFlags": {}
-                }
-            }
+                return objeto
+        elif not lista: #consume func retorna resultado
+            if isinstance(objeto,list):
+                return func(objeto) 
+            elif isinstance(objeto,dict):
+                if lista:
+                    return func([objeto])
+                else:
+                    return func(objeto)
+            else:
+                return objeto
     else:
-        try:
-            if nodo:
-                final_out = {
-                    "ResumenFlags": {
-                        "Codigo": modulo[0].get('Codigo'),
-                        "Nombre": modulo[0].get('Nombre'),
-                        "Data": {
-                            "flag": True,
-                            "ResumenFlags": data_output
-                        }
-                    }
-                }
+        return objeto
+        
+#Reemplaza por null los tag xsi
+def xsi_to_null(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, dict) and "xsi:nil" in value and value["xsi:nil"] == True and "xmlns:xsi" in value and value["xmlns:xsi"] == "http://www.w3.org/2001/XMLSchema-instance":
+                data[key] = None
             else:
-                final_out = {
-                    "ResumenFlags": {
-                        "Codigo": codigo,
-                        "Nombre": nombre,
-                        "Data": {
-                            "flag": False,
-                            "ResumenFlags": {}
-                        }
-                    }
-                }
-        except Exception as e:
-            print(f"Error generando la salida final (formato_salida=True): {e}")
-            traceback.print_exc()
-            final_out = {
-                "ResumenFlags": {
-                    "Codigo": codigo,
-                    "Nombre": nombre,
-                    "Data": {
-                        "flag": False,
-                        "ResumenFlags": {}
-                    }
-                }
-            }
+                xsi_to_null(value)
+    elif isinstance(data, list):
+        for item in data:
+            xsi_to_null(item)
 
-    return final_out
-
-def boletinoficial(nodo):
-    return {
-        'ExtincionPatrimonioFamiliar': extincion_patrimonio_familiar(nodo.get('ExtincionPatrimonioFamiliar', {})),
-        'ConstitucionPatrimonioFamiliar': constitucion_patrimonio_familiar(nodo.get('ConstitucionPatrimonioFamiliar', {})),
-        'ObligacionDarDinero': obligacion_dar_dinero(nodo.get('ObligacionDarDinero', {})),
-        'RematesBienesMuebles': remates_bienes_muebles(nodo.get('RematesBienesMuebles', {})),
-        'RematesBienesInmuebles': remates_bienes_inmuebles(nodo.get('RematesBienesInmuebles', {})),
-        'ConvocatoriaAccredores': convocatoria_accredores(nodo.get('ConvocatoriaAccredores', {})),
-        'AvisosQuiebra': avisos_quiebra(nodo.get('AvisosQuiebra', {})),
-        'FusionSociedades': fusion_sociedades(nodo.get('FusionSociedades', {})),
-        'EscisionPatrimonio': escision_patrimonio(nodo.get('EscisionPatrimonio', {})),
-        'RematesWarrants': remates_warrants(nodo.get('RematesWarrants', {})),
-        'Disoluciones': disoluciones(nodo.get('Disoluciones', {})),
-        'CambiosCapital': cambios_capital(nodo.get('CambiosCapital', {})),
-        'EntidadesJudiciales': entidades_judiciales(nodo.get('EntidadesJudiciales', {})),
-        'Convocatorias': convocatorias(nodo.get('Convocatorias', {}))
-    }
-
-def extincion_patrimonio_familiar(nodo):
-    return {
-        'PatrimonioFamiliar': [
-            {
-                'FechaComunicacion': text_fix(item.get('FechaComunicacion')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Personas': personas(item.get('Personas', {})),
-                'Bienes': bienes(item.get('Bienes', {}))
-            } for item in nodo.get('PatrimonioFamiliar', [])
-        ]
-    }
-
-def constitucion_patrimonio_familiar(nodo):
-    return {
-        'PatrimonioFamiliar': [
-            {
-                'FechaComunicacion': text_fix(item.get('FechaComunicacion')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Personas': personas(item.get('Personas', {})),
-                'Bienes': bienes(item.get('Bienes', {}))
-            } for item in nodo.get('PatrimonioFamiliar', [])
-        ]
-    }
-
-def obligacion_dar_dinero(nodo):
-    return {
-        'Obligacion': [
-            {
-                'Motivo': text_fix(item.get('Motivo')),
-                'Divisa': text_fix(item.get('Divisa')),
-                'Monto': float_fix(item.get('Monto')),
-                'Juzgado': text_fix(item.get('Juzgado')),
-                'FechaResolucion': text_fix(item.get('FechaResolucion')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Acreedores': acreedores(item.get('Acreedores', {})),
-                'Deudores': deudores(item.get('Deudores', {}))
-            } for item in nodo.get('Obligacion', [])
-        ]
-    }
-
-def remates_bienes_muebles(nodo):
-    return {
-        'RemateMueble': [
-            {
-                'NumeroExpediente': text_fix(item.get('NumeroExpediente')),
-                'NumeroRemate': text_fix(item.get('NumeroRemate')),
-                'Motivo': text_fix(item.get('Motivo')),
-                'Juzgado': text_fix(item.get('Juzgado')),
-                'EncargoDe': text_fix(item.get('EncargoDe')),
-                'Divisa': text_fix(item.get('Divisa')),
-                'MontoTasacion': float_fix(item.get('MontoTasacion')),
-                'MontoBase': float_fix(item.get('MontoBase')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Ubigeo': text_fix(item.get('Ubigeo')),
-                'Direccion': text_fix(item.get('Direccion')),
-                'Demandantes': demandantes(item.get('Demandantes', {})),
-                'Demandados': demandados(item.get('Demandados', {})),
-                'Muebles': muebles(item.get('Muebles', {})),
-                'Inmuebles': inmuebles(item.get('Inmuebles', {})),
-                'Mercaderias': mercaderias(item.get('Mercaderias', {}))
-            } for item in nodo.get('RemateMueble', [])
-        ]
-    }
-
-def remates_bienes_inmuebles(nodo):
-    return {
-        'RemateInmueble': [
-            {
-                'NumeroExpediente': text_fix(item.get('NumeroExpediente')),
-                'NumeroRemate': text_fix(item.get('NumeroRemate')),
-                'Motivo': text_fix(item.get('Motivo')),
-                'Juzgado': text_fix(item.get('Juzgado')),
-                'Divisa': text_fix(item.get('Divisa')),
-                'MontoTasacion': float_fix(item.get('MontoTasacion')),
-                'MontoBase': float_fix(item.get('MontoBase')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Ubigeo': text_fix(item.get('Ubigeo')),
-                'Direccion': text_fix(item.get('Direccion')),
-                'Demandantes': demandantes(item.get('Demandantes', {})),
-                'Demandados': demandados(item.get('Demandados', {})),
-                'Muebles': muebles(item.get('Muebles', {})),
-                'Inmuebles': inmuebles(item.get('Inmuebles', {})),
-                'Mercaderias': mercaderias(item.get('Mercaderias', {}))
-            } for item in nodo.get('RemateInmueble', [])
-        ]
-    }
-
-def convocatoria_accredores(nodo):
-    return {
-        'Convocatoria': [
-            {
-                'Motivo': text_fix(item.get('Motivo')),
-                'Numero': text_fix(item.get('Numero')),
-                'FechaComunicado': text_fix(item.get('FechaComunicado')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'FechaJunta': text_fix(item.get('FechaJunta')),
-                'HoraJunta': text_fix(item.get('HoraJunta')),
-                'Direccion': text_fix(item.get('Direccion')),
-                'Ubigeo': text_fix(item.get('Ubigeo'))
-            } for item in nodo.get('Convocatoria', [])
-        ]
-    }
-
-def avisos_quiebra(nodo):
-    return {
-        'Quiebra': [
-            {
-                'Expediente': text_fix(item.get('Expediente')),
-                'FechaResolucion': text_fix(item.get('FechaResolucion')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Liquidadores': liquidadores(item.get('Liquidadores', {}))
-            } for item in nodo.get('Quiebra', [])
-        ]
-    }
-
-def fusion_sociedades(nodo):
-    return {
-        'Fusion': [
-            {
-                'NuevoNombre': text_fix(item.get('NuevoNombre')),
-                'Divisa': text_fix(item.get('Divisa')),
-                'NuevoCapital': float_fix(item.get('NuevoCapital')),
-                'FechaAcuerdo': text_fix(item.get('FechaAcuerdo')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Empresas': empresas(item.get('Empresas', {}))
-            } for item in nodo.get('Fusion', [])
-        ]
-    }
-
-def escision_patrimonio(nodo):
-    return {
-        'Escision': [
-            {
-                'Divisa': text_fix(item.get('Divisa')),
-                'PatrimonioEscindido': float_fix(item.get('PatrimonioEscindido')),
-                'FechaVigencia': text_fix(item.get('FechaVigencia')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'EscindenteTipoDocumento': text_fix(item.get('EscindenteTipoDocumento')),
-                'EscindenteNumeroDocumento': text_fix(item.get('EscindenteNumeroDocumento')),
-                'EscindenteNombre': text_fix(item.get('EscindenteNombre')),
-                'EscindenteCapital': float_fix(item.get('EscindenteCapital')),
-                'BeneficiarioTipoDocumento': text_fix(item.get('BeneficiarioTipoDocumento')),
-                'BeneficiarioNumeroDocumento': text_fix(item.get('BeneficiarioNumeroDocumento')),
-                'BeneficiarioNombre': text_fix(item.get('BeneficiarioNombre')),
-                'BeneficiarioCapital': float_fix(item.get('BeneficiarioCapital'))
-            } for item in nodo.get('Escision', [])
-        ]
-    }
-
-def remates_warrants(nodo):
-    return {
-        'RemateWarrant': [
-            {
-                'Motivo': text_fix(item.get('Motivo')),
-                'EncargoDe': text_fix(item.get('EncargoDe')),
-                'Divisa': text_fix(item.get('Divisa')),
-                'MontoTasacion': float_fix(item.get('MontoTasacion')),
-                'MontoBase': float_fix(item.get('MontoBase')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Ubigeo': text_fix(item.get('Ubigeo')),
-                'Direccion': text_fix(item.get('Direccion')),
-                'FechaRemate': text_fix(item.get('FechaRemate')),
-                'HoraRemate': text_fix(item.get('HoraRemate')),
-                'Demandantes': demandantes(item.get('Demandantes', {})),
-                'Mercaderias': mercaderias(item.get('Mercaderias', {}))
-            } for item in nodo.get('RemateWarrant', [])
-        ]
-    }
-
-def disoluciones(nodo):
-    return {
-        'Disolucion': [
-            {
-                'Direccion': text_fix(item.get('Direccion')),
-                'Ubigeo': text_fix(item.get('Ubigeo')),
-                'FechaVigencia': text_fix(item.get('FechaVigencia')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'Liquidadores': liquidadores(item.get('Liquidadores', {}))
-            } for item in nodo.get('Disolucion', [])
-        ]
-    }
-
-def cambios_capital(nodo):
-    return {
-        'Cambio': [
-            {
-                'FechaAcuerdo': text_fix(item.get('FechaAcuerdo')),
-                'Divisa': text_fix(item.get('Divisa')),
-                'TipoCambio': text_fix(item.get('TipoCambio')),
-                'MontoAcuerdo': float_fix(item.get('MontoAcuerdo')),
-                'CapitalAnterior': float_fix(item.get('CapitalAnterior')),
-                'CapitalActual': float_fix(item.get('CapitalActual')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion'))
-            } for item in nodo.get('Cambio', [])
-        ]
-    }
-
-def personas(nodo):
-    return {
-        'Persona': [
-            {
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'Nombres': text_fix(item.get('Nombres')),
-                'Tipo': text_fix(item.get('Tipo'))
-            } for item in nodo.get('Persona', [])
-        ]
-    }
-
-def bienes(nodo):
-    return {
-        'Bien': [
-            {
-                'Tipo': text_fix(item.get('Tipo')),
-                'RegistroPublico': text_fix(item.get('RegistroPublico')),
-                'Direccion': text_fix(item.get('Direccion')),
-                'Ubigeo': text_fix(item.get('Ubigeo'))
-            } for item in nodo.get('Bien', [])
-        ]
-    }
-
-def acreedores(nodo):
-    return {
-        'Acreedor': [
-            {
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'Nombres': text_fix(item.get('Nombres')),
-                'Tipo': text_fix(item.get('Tipo'))
-            } for item in nodo.get('Acreedor', [])
-        ]
-    }
-
-def deudores(nodo):
-    return {
-        'Deudor': [
-            {
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'Nombres': text_fix(item.get('Nombres')),
-                'Tipo': text_fix(item.get('Tipo'))
-            } for item in nodo.get('Deudor', [])
-        ]
-    }
-
-def demandantes(nodo):
-    return {
-        'Demandante': [
-            {
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'Nombres': text_fix(item.get('Nombres')),
-                'Tipo': text_fix(item.get('Tipo'))
-            } for item in nodo.get('Demandante', [])
-        ]
-    }
-
-def demandados(nodo):
-    return {
-        'Demandado': [
-            {
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'Nombres': text_fix(item.get('Nombres')),
-                'Tipo': text_fix(item.get('Tipo'))
-            } for item in nodo.get('Demandado', [])
-        ]
-    }
-
-def muebles(nodo):
-    return {
-        'Mueble': [
-            {
-                'Tipo': text_fix(item.get('Tipo')),
-                'Caracteristica': text_fix(item.get('Caracteristica')),
-                'MontoTasacion': float_fix(item.get('MontoTasacion')),
-                'MontoBase': float_fix(item.get('MontoBase'))
-            } for item in nodo.get('Mueble', [])
-        ]
-    }
-
-def inmuebles(nodo):
-    return {
-        'Inmueble': [
-            {
-                'Tipo': text_fix(item.get('Tipo')),
-                'Caracteristica': text_fix(item.get('Caracteristica')),
-                'MontoTasacion': float_fix(item.get('MontoTasacion')),
-                'MontoBase': float_fix(item.get('MontoBase'))
-            } for item in nodo.get('Inmueble', [])
-        ]
-    }
-
-def mercaderias(nodo):
-    return {
-        'Mercaderia': [
-            {
-                'Tipo': text_fix(item.get('Tipo')),
-                'Caracteristica': text_fix(item.get('Caracteristica')),
-                'MontoTasacion': float_fix(item.get('MontoTasacion')),
-                'MontoBase': float_fix(item.get('MontoBase'))
-            } for item in nodo.get('Mercaderia', [])
-        ]
-    }
-
-def liquidadores(nodo):
-    return {
-        'Liquidador': [
-            {
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'Nombres': text_fix(item.get('Nombres'))
-            } for item in nodo.get('Liquidador', [])
-        ]
-    }
-
-def empresas(nodo):
-    return {
-        'Empresa': [
-            {
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'Nombres': text_fix(item.get('Nombres'))
-            } for item in nodo.get('Empresa', [])
-        ]
-    }
-
-def entidades_judiciales(nodo):
-    return {
-        'EntidadJudicial': [
-            {
-                'TipoDocumento': text_fix(item.get('TipoDocumento')),
-                'NumeroDocumento': text_fix(item.get('NumeroDocumento')),
-                'Nombres': text_fix(item.get('Nombres')),
-                'Tipo': text_fix(item.get('Tipo'))
-            } for item in nodo.get('EntidadJudicial', [])
-        ]
-    }
-
-def convocatorias(nodo):
-    if nodo is None:
-        return {}
-    return {
-        'Convocatoria': [
-            {
-                'Motivo': text_fix(item.get('Motivo')),
-                'Numero': text_fix(item.get('Numero')),
-                'FechaComunicado': text_fix(item.get('FechaComunicado')),
-                'FechaPublicacion': text_fix(item.get('FechaPublicacion')),
-                'FechaJunta': text_fix(item.get('FechaJunta')),
-                'HoraJunta': text_fix(item.get('HoraJunta')),
-                'Direccion': text_fix(item.get('Direccion')),
-                'Ubigeo': text_fix(item.get('Ubigeo'))
-            } for item in nodo.get('Convocatoria', [])
-        ]
-    }
-
-if __name__ == '__main__':
-    with open('response-dss1.json', 'r', encoding='UTF-8') as file:
-        request = json.load(file)
-        out = json.dumps(main(request), indent=4)
-    with open('respond.json', 'w') as file:
-        file.write(out)
