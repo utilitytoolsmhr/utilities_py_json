@@ -18,8 +18,8 @@ def main(payload):
     tipoPersona = int(primaryConsumer.get('personalInformation').get('tipoPersona'))
     formato_salida = primaryConsumer.get('personalInformation').get('formatoSalida')
 
-    # Código modulo -> Persona Natural o Persona Jurídica
-    codigo_modulo = 448 if tipoPersona == 2 else 449
+    # Código modulo -> Persona Natural = 1 / Persona Jurídica = 2
+    codigo_modulo = 222 if tipoPersona == 1 else 333
 
     try:
         # Captura respuesta API-DSS
@@ -29,8 +29,8 @@ def main(payload):
         xsi_to_null(payload)
 
         # Seleccionamos el modulo target
-        nombre = 'RESUMEN FINANCIERO: SISTEMA FINANCIERO (SBS) Y NO REGULADO (MICROFINANZAS)'
-        target = 'ResumenFinanciero'
+        nombre = 'BOLETÍN OFICIAL'
+        target = 'BoletinOficial'
         codigo = codigo_modulo
         modulos = payload.get('dataSourceResponse').get('GetReporteOnlineResponse').get('ReporteCrediticio').get('Modulos').get('Modulo')
         modulo = [modulo for modulo in modulos if modulo.get('Data') is not None and nombre in modulo.get('Nombre')]
@@ -47,67 +47,28 @@ def main(payload):
         traceback.print_exc()
 
     #################################################
-    ################### Variables ###################
+    ################### Functions ###################
     #################################################
 
-    def deudas_data(nodo):
+
+    def process_boletinoficial_CambiosCapital(data):
         return {
-            'Entidad': text_fix(nodo.get('Entidad')),
-            'SistemaFinanciero': text_fix(nodo.get('SistemaFinanciero')),
-            'CalificacionMesActual': text_fix(nodo.get('CalificacionMesActual')),
-            'MontoSubTotalMesActual': float_fix(nodo.get('MontoSubTotalMesActual')),
-            'CalificacionMesAnterior': text_fix(nodo.get('CalificacionMesAnterior')),
-            'MontoSubTotalMesAnterior': float_fix(nodo.get('MontoSubTotalMesAnterior')),
-            'CalificacionAnioAnterior': text_fix(nodo.get('CalificacionAnioAnterior')),
-            'MontoSubTotalAnioAnterior': float_fix(nodo.get('MontoSubTotalAnioAnterior')),
-            'Productos': {
-                'Producto': [
-                    {
-                        'Tipo': text_fix(producto.get('Tipo')),
-                        'Descripcion': text_fix(producto.get('Descripcion')),
-                        'MontoMesActual': float_fix(producto.get('MontoMesActual')),
-                        'MontoMesAnterior': float_fix(producto.get('MontoMesAnterior')),
-                        'MontoAnioAnterior': float_fix(producto.get('MontoAnioAnterior')),
-                        'DiasAtraso': text_fix(producto.get('DiasAtraso'))
-                    }
-                    for producto in nodo.get('Productos', {}).get('Producto', [])
-                ]
-            }
+            'Cambio': text_fix(data.get('Cambio', '')),
         }
 
-    def resumen_financiero(nodo):
+    def process_boletinoficial_FusionSociedades(data):
         return {
-            'DeudasUltimoPeriodo': {
-                'periodo': text_fix(nodo.get('DeudasUltimoPeriodo', {}).get('periodo')),
-                'MesActual': text_fix(nodo.get('DeudasUltimoPeriodo', {}).get('MesActual')),
-                'MesAnterior': text_fix(nodo.get('DeudasUltimoPeriodo', {}).get('MesAnterior')),
-                'AnioAnterior': text_fix(nodo.get('DeudasUltimoPeriodo', {}).get('AnioAnterior')),
-                'Deudas': {
-                    'Deuda': [
-                        deudas_data(deuda)
-                        for deuda in nodo.get('DeudasUltimoPeriodo', {}).get('Deudas', {}).get('Deuda', [])
-                    ]
-                },
-                'Totales': {
-                    'MontoTotalMesActual': float_fix(nodo.get('DeudasUltimoPeriodo', {}).get('Totales', {}).get('MontoTotalMesActual')),
-                    'MontoTotalMesAnterior': float_fix(nodo.get('DeudasUltimoPeriodo', {}).get('Totales', {}).get('MontoTotalMesAnterior')),
-                    'MontoTotalAnioAnterior': float_fix(nodo.get('DeudasUltimoPeriodo', {}).get('Totales', {}).get('MontoTotalAnioAnterior'))
-                }
-            }
+            'Fusion': text_fix(data.get('Fusion', '')),
         }
 
-    data_output = resumen_financiero(nodo)
+    #################################################
+    ################# Data Processing ###############
+    #################################################
 
-    # Limpiar objetos vacíos
-    def clean_data(data):
-        if isinstance(data, dict):
-            return {k: clean_data(v) for k, v in data.items() if v not in [None, "xsi:nil", "xmlns:xsi"]}
-        elif isinstance(data, list):
-            return [clean_data(v) for v in data if v not in [None, "xsi:nil", "xmlns:xsi"]]
-        else:
-            return data
+    result = {}
 
-    data_output = clean_data(data_output)
+    result['CambiosCapital'] = process_boletinoficial_CambiosCapital(nodo.get('CambiosCapital', {}))
+    result['FusionSociedades'] = process_boletinoficial_FusionSociedades(nodo.get('FusionSociedades', {}))
 
     #################################################
     ################## Set Output ###################
@@ -120,7 +81,7 @@ def main(payload):
                 "Nombre": modulo[0].get('Nombre'),
                 "Data": {
                     "flag": modulo[0].get('Data').get('flag'),
-                    "ResumenFinanciero": data_output
+                    "BoletinOficial": result
                 }
             }
         except Exception as e:
@@ -131,32 +92,27 @@ def main(payload):
                 "Nombre": nombre,
                 "Data": {
                     "flag": False,
-                    "ResumenFinanciero": {}
+                    "BoletinOficial": {}
                 }
             }
     else:
         try:
             final_out = {
-                "ResumenFinanciero": {
+                "BoletinOficial": {
                     "Codigo": modulo[0].get('Codigo'),
                     "Nombre": modulo[0].get('Nombre'),
-                    "Data": {
-                        "flag": modulo[0].get('Data').get('flag'),
-                        "ResumenFinanciero": data_output
-                    }
+                    "Data": modulo[0].get('Data').get('flag'),
+                    "BoletinOficial": result
                 }
             }
         except Exception as e:
             print(f"Error generando la salida final (formato_salida=True): {e}")
             traceback.print_exc()
             final_out = {
-                "ResumenFinanciero": {
+                "BoletinOficial": {
                     "Codigo": codigo,
                     "Nombre": nombre,
-                    "Data": {
-                        "flag": False,
-                        "ResumenFinanciero": {}
-                    }
+                    "Data": False
                 }
             }
     return final_out
